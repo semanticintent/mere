@@ -294,6 +294,7 @@ var Mere = (() => {
       const root = name.split(".")[0] ?? name;
       if (!this.subs.has(root)) this.subs.set(root, /* @__PURE__ */ new Set());
       this.subs.get(root).add(fn);
+      fn();
     }
     unsubscribe(name, fn) {
       const root = name.split(".")[0] ?? name;

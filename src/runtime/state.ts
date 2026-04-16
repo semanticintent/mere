@@ -100,6 +100,7 @@ export class Store {
     const root = name.split('.')[0] ?? name;
     if (!this.subs.has(root)) this.subs.set(root, new Set());
     this.subs.get(root)!.add(fn);
+    fn(); // initialize binding with current value immediately
   }
 
   unsubscribe(name: string, fn: Subscriber): void {
