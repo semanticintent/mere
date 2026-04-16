@@ -1,0 +1,458 @@
+import type { ASTNode, RenderContext } from './types.js';
+import type { Store } from './state.js';
+import { resolveRead, bindRead, bindTwoWay, bindAction, renderChildren } from './renderer.js';
+
+// ─── Element handler type ─────────────────────────────────────────────────────
+
+export type RenderFn = (
+  node: ASTNode,
+  store: Store,
+  context: RenderContext,
+  onGoTo: (screen: string) => void,
+  renderChildren: typeof import('./renderer.js').renderChildren,
+) => HTMLElement;
+
+export type ElementHandler = RenderFn;
+
+// ─── Helper: create a classed div ─────────────────────────────────────────────
+
+function div(cls: string, ...extra: string[]): HTMLDivElement {
+  const el = document.createElement('div');
+  el.classList.add('mp-' + cls, ...extra.map(c => 'mp-' + c));
+  return el;
+}
+
+function span(cls: string): HTMLSpanElement {
+  const el = document.createElement('span');
+  el.classList.add('mp-' + cls);
+  return el;
+}
+
+// ─── screen-root ──────────────────────────────────────────────────────────────
+
+const screenRoot: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('screen');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── header ───────────────────────────────────────────────────────────────────
+
+const header: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = document.createElement('header');
+  el.classList.add('mp-header');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── footer ───────────────────────────────────────────────────────────────────
+
+const footer: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = document.createElement('footer');
+  el.classList.add('mp-footer');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── heading ──────────────────────────────────────────────────────────────────
+
+const heading: RenderFn = (node, store, context, onGoTo) => {
+  const el = document.createElement('h2');
+  el.classList.add('mp-heading');
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
+  } else {
+    el.textContent = node.text;
+  }
+  return el;
+};
+
+// ─── subtitle ─────────────────────────────────────────────────────────────────
+
+const subtitle: RenderFn = (node, store, context, onGoTo) => {
+  const el = span('subtitle');
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
+  } else {
+    el.textContent = node.text;
+  }
+  return el;
+};
+
+// ─── paragraph ────────────────────────────────────────────────────────────────
+
+const paragraph: RenderFn = (node, store, context, onGoTo) => {
+  const el = document.createElement('p');
+  el.classList.add('mp-paragraph');
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
+  } else {
+    el.textContent = node.text;
+  }
+  return el;
+};
+
+// ─── timestamp ────────────────────────────────────────────────────────────────
+
+const timestamp: RenderFn = (node, store, context, onGoTo) => {
+  const el = span('timestamp');
+  const update = (raw: string) => {
+    // Try to format as relative time or locale date
+    const d = new Date(raw);
+    el.textContent = isNaN(d.getTime()) ? raw : formatRelative(d);
+    el.title = raw;
+  };
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, update);
+  } else {
+    update(node.text);
+  }
+  return el;
+};
+
+// ─── badge ────────────────────────────────────────────────────────────────────
+
+const badge: RenderFn = (node, store, context, onGoTo) => {
+  const el = span('badge');
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, v => {
+      el.textContent = v;
+      el.style.display = v === '0' || v === '' ? 'none' : '';
+    });
+  } else {
+    el.textContent = node.text;
+  }
+  return el;
+};
+
+// ─── avatar ───────────────────────────────────────────────────────────────────
+
+const avatar: RenderFn = (node, store, context, onGoTo) => {
+  const el = div('avatar');
+  if (node.bindings.read) {
+    bindRead(el, node.bindings.read, store, context, v => {
+      if (v.startsWith('http') || v.startsWith('/') || v.startsWith('data:')) {
+        el.innerHTML = `<img src="${v}" alt="">`;
+      } else {
+        // Use initials
+        el.textContent = v.slice(0, 2).toUpperCase();
+      }
+    });
+  }
+  return el;
+};
+
+// ─── icon ─────────────────────────────────────────────────────────────────────
+
+const icon: RenderFn = (node, store, context, onGoTo) => {
+  const el = span('icon');
+  const name = node.bindings.positional ?? node.bindings.literal ?? node.text;
+  el.dataset['icon'] = name;
+  el.setAttribute('aria-label', name);
+  // Simple text-based icons for M1; swap for SVG sprites in later milestones
+  el.textContent = iconGlyph(name);
+  return el;
+};
+
+// ─── tab-bar ──────────────────────────────────────────────────────────────────
+
+const tabBar: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('tab-bar');
+  const stateName = node.bindings.twoWay ?? '';
+
+  // Render tabs and wire tab selection
+  for (const child of node.children) {
+    if (child.tag !== 'tab') continue;
+    const tabEl = document.createElement('button');
+    tabEl.classList.add('mp-tab');
+    const tabValue = child.bindings.positional ?? child.bindings.literal ?? '';
+    tabEl.dataset['value'] = tabValue;
+    tabEl.textContent = child.text;
+
+    // Active state
+    const setActive = () => {
+      const current = String(store.get(stateName, context));
+      tabEl.classList.toggle('mp-tab--active', current === tabValue);
+    };
+    setActive();
+    if (stateName) store.subscribe(stateName, setActive);
+
+    tabEl.addEventListener('click', () => {
+      if (stateName) store.set(stateName, tabValue);
+    });
+    el.appendChild(tabEl);
+  }
+  return el;
+};
+
+// ─── navigation-bar ───────────────────────────────────────────────────────────
+
+const navigationBar: RenderFn = (node, store, context, onGoTo, rc) => {
+  const position = node.bindings.literal ?? node.bindings.positional ?? 'bottom';
+  const el = document.createElement('nav');
+  el.classList.add('mp-navigation-bar', `mp-navigation-bar--${position}`);
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── nav-item ─────────────────────────────────────────────────────────────────
+
+const navItem: RenderFn = (node, store, context, onGoTo) => {
+  const el = document.createElement('button');
+  el.classList.add('mp-nav-item');
+
+  // First positional attr is the screen name or icon name
+  const attrs = Array.from(
+    (node as unknown as { _el?: Element })._el?.attributes ?? []
+  );
+  const target = node.bindings.literal ?? node.bindings.positional ?? '';
+  el.dataset['target'] = target;
+  el.textContent = node.text;
+
+  if (node.bindings.action) {
+    bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
+  } else if (target) {
+    el.addEventListener('click', () => onGoTo(target));
+  }
+  return el;
+};
+
+// ─── message-list / card-list / list ─────────────────────────────────────────
+
+function makeList(cls: string): RenderFn {
+  return (node, store, context, onGoTo, rc) => {
+    const el = div(cls);
+    const stateName = node.bindings.read ?? '';
+    const template = node.children[0]; // the item template
+
+    const render = () => {
+      el.innerHTML = '';
+      if (!stateName || !template) return;
+      const items = store.get(stateName, context);
+      if (!Array.isArray(items)) return;
+      for (const item of items) {
+        const itemContext: RenderContext = { ...context, item: item as Record<string, unknown> };
+        const itemEl = renderChildren2(template, store, itemContext, onGoTo);
+        el.appendChild(itemEl);
+      }
+    };
+
+    render();
+    if (stateName) store.subscribe(stateName, render);
+    return el;
+  };
+}
+
+// ─── message-card / card ──────────────────────────────────────────────────────
+
+function makeCard(cls: string): RenderFn {
+  return (node, store, context, onGoTo, rc) => {
+    const el = div(cls);
+    el.setAttribute('role', 'button');
+    el.setAttribute('tabindex', '0');
+
+    if (node.bindings.action) {
+      bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
+      el.style.cursor = 'pointer';
+    }
+
+    rc(el, node, store, context, onGoTo);
+    return el;
+  };
+}
+
+// ─── form ─────────────────────────────────────────────────────────────────────
+
+const form: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = document.createElement('form');
+  el.classList.add('mp-form');
+  el.addEventListener('submit', e => e.preventDefault());
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── field ────────────────────────────────────────────────────────────────────
+
+const field: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('field');
+  const input = document.createElement('input');
+  input.classList.add('mp-field__input');
+
+  // Passthrough attrs
+  for (const [k, v] of Object.entries(node.attrs)) {
+    input.setAttribute(k, v);
+  }
+  if (node.bindings.twoWay) {
+    bindTwoWay(input, node.bindings.twoWay, store, context);
+  }
+  wrapper.appendChild(input);
+  return wrapper;
+};
+
+// ─── button ───────────────────────────────────────────────────────────────────
+
+const button: RenderFn = (node, store, context, onGoTo) => {
+  const el = document.createElement('button');
+  el.classList.add('mp-button');
+  el.textContent = node.text;
+  for (const [k, v] of Object.entries(node.attrs)) {
+    el.setAttribute(k, v);
+  }
+  if (node.bindings.action) {
+    bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
+  }
+  return el;
+};
+
+// ─── toggle ───────────────────────────────────────────────────────────────────
+
+const toggle: RenderFn = (node, store, context, onGoTo) => {
+  const label = document.createElement('label');
+  label.classList.add('mp-toggle');
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.classList.add('mp-toggle__input');
+
+  const track = span('toggle__track');
+  const textSpan = span('toggle__label');
+  textSpan.textContent = node.text;
+
+  if (node.bindings.twoWay) {
+    const stateName = node.bindings.twoWay;
+    const sync = () => {
+      const val = store.get(stateName, context);
+      input.checked = Boolean(val);
+    };
+    sync();
+    store.subscribe(stateName, sync);
+    input.addEventListener('change', () => store.set(stateName, input.checked));
+  }
+
+  label.appendChild(input);
+  label.appendChild(track);
+  label.appendChild(textSpan);
+  return label;
+};
+
+// ─── modal / toast / banner ───────────────────────────────────────────────────
+
+const modal: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('modal');
+  el.setAttribute('role', 'dialog');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+const toast: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('toast');
+  el.setAttribute('role', 'status');
+  el.textContent = node.text;
+  return el;
+};
+
+const banner: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('banner');
+  el.setAttribute('role', 'banner');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── Registry ─────────────────────────────────────────────────────────────────
+
+export const ELEMENTS: Record<string, ElementHandler> = {
+  'screen-root': screenRoot,
+  'header': header,
+  'footer': footer,
+  'heading': heading,
+  'subtitle': subtitle,
+  'paragraph': paragraph,
+  'timestamp': timestamp,
+  'badge': badge,
+  'avatar': avatar,
+  'icon': icon,
+  'tab-bar': tabBar,
+  'tab': () => div('tab'), // handled inside tab-bar; standalone is a no-op
+  'navigation-bar': navigationBar,
+  'nav-item': navItem,
+  'message-list': makeList('message-list'),
+  'card-list': makeList('card-list'),
+  'list': makeList('list'),
+  'message-card': makeCard('message-card'),
+  'card': makeCard('card'),
+  'form': form,
+  'field': field,
+  'button': button,
+  'toggle': toggle,
+  'modal': modal,
+  'toast': toast,
+  'banner': banner,
+};
+
+// ─── Shared render-children without circular import ───────────────────────────
+// Imported lazily to avoid circular dep with renderer.ts
+
+function renderChildren2(
+  node: ASTNode,
+  store: Store,
+  context: RenderContext,
+  onGoTo: (screen: string) => void,
+): HTMLElement {
+  // Dynamic import would break the bundle; use the registry directly
+  const handler = ELEMENTS[node.tag];
+  if (handler) {
+    return handler(node, store, context, onGoTo, renderChildrenInline);
+  }
+  const el = document.createElement('div');
+  el.dataset['tag'] = node.tag;
+  renderChildrenInline(el, node, store, context, onGoTo);
+  return el;
+}
+
+function renderChildrenInline(
+  container: HTMLElement,
+  node: ASTNode,
+  store: Store,
+  context: RenderContext,
+  onGoTo: (screen: string) => void,
+): void {
+  for (const child of node.children) {
+    container.appendChild(renderChildren2(child, store, context, onGoTo));
+  }
+  if (node.text && node.children.length === 0) {
+    container.textContent = node.text;
+  }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+
+function formatRelative(d: Date): string {
+  const diff = Date.now() - d.getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return d.toLocaleDateString();
+}
+
+function iconGlyph(name: string): string {
+  const glyphs: Record<string, string> = {
+    'inbox': '✉',
+    'starred': '★',
+    'star': '★',
+    'settings': '⚙',
+    'archive': '↓',
+    'arrow-left': '←',
+    'back': '←',
+    'search': '⌕',
+    'compose': '✎',
+    'close': '✕',
+    'check': '✓',
+    'menu': '≡',
+    'more': '…',
+  };
+  return glyphs[name] ?? '○';
+}

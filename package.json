@@ -1,0 +1,15 @@
+{
+  "name": "mere",
+  "version": "0.1.0",
+  "description": "A workbook format for apps. The file is the app.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "watch": "node build.js --watch",
+    "dev": "node build.js --serve"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.7.0"
+  }
+}
