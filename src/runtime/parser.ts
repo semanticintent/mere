@@ -31,6 +31,9 @@ function parseDefault(raw: string | null, type: string): unknown {
   if (raw === null) return undefined;
   if (type === 'number') return Number(raw);
   if (type === 'boolean') return raw === 'true';
+  if (type === 'list' || type === 'map') {
+    try { return JSON.parse(raw); } catch { return type === 'list' ? [] : {}; }
+  }
   return raw;
 }
 

@@ -46,6 +46,13 @@ var Mere = (() => {
     if (raw === null) return void 0;
     if (type === "number") return Number(raw);
     if (type === "boolean") return raw === "true";
+    if (type === "list" || type === "map") {
+      try {
+        return JSON.parse(raw);
+      } catch {
+        return type === "list" ? [] : {};
+      }
+    }
     return raw;
   }
   function parseComputed(computedEl) {
