@@ -1,6 +1,6 @@
 import type { ASTNode, RenderContext } from './types.js';
 import type { Store } from './state.js';
-import { resolveRead, bindRead, bindTwoWay, bindAction, renderChildren } from './renderer.js';
+import { resolveRead, bindRead, bindText, bindTwoWay, bindAction, renderChildren } from './renderer.js';
 
 // ─── Element handler type ─────────────────────────────────────────────────────
 
@@ -62,7 +62,7 @@ const heading: RenderFn = (node, store, context, onGoTo) => {
   if (node.bindings.read) {
     bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
   } else {
-    el.textContent = node.text;
+    bindText(el, node.text, store, context);
   }
   return el;
 };
@@ -74,7 +74,7 @@ const subtitle: RenderFn = (node, store, context, onGoTo) => {
   if (node.bindings.read) {
     bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
   } else {
-    el.textContent = node.text;
+    bindText(el, node.text, store, context);
   }
   return el;
 };
@@ -87,7 +87,7 @@ const paragraph: RenderFn = (node, store, context, onGoTo) => {
   if (node.bindings.read) {
     bindRead(el, node.bindings.read, store, context, v => { el.textContent = v; });
   } else {
-    el.textContent = node.text;
+    bindText(el, node.text, store, context);
   }
   return el;
 };

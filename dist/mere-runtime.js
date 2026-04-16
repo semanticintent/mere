@@ -561,7 +561,7 @@ var Mere = (() => {
         el.textContent = v;
       });
     } else {
-      el.textContent = node.text;
+      bindText(el, node.text, store, context);
     }
     return el;
   };
@@ -572,7 +572,7 @@ var Mere = (() => {
         el.textContent = v;
       });
     } else {
-      el.textContent = node.text;
+      bindText(el, node.text, store, context);
     }
     return el;
   };
@@ -584,7 +584,7 @@ var Mere = (() => {
         el.textContent = v;
       });
     } else {
-      el.textContent = node.text;
+      bindText(el, node.text, store, context);
     }
     return el;
   };
@@ -897,6 +897,23 @@ var Mere = (() => {
     update();
     store.subscribe(stateName, update);
     return () => store.unsubscribe(stateName, update);
+  }
+  function bindText(el, template, store, context) {
+    const refs = [...template.matchAll(/@([\w-]+(?:\.[\w-]+)*)/g)].map((m) => m[1]);
+    if (refs.length === 0) {
+      el.textContent = template;
+      return;
+    }
+    const update = () => {
+      el.textContent = template.replace(
+        /@([\w-]+(?:\.[\w-]+)*)/g,
+        (_, name) => String(store.get(name, context) ?? "")
+      );
+    };
+    update();
+    for (const ref of [...new Set(refs)]) {
+      store.subscribe(ref, update);
+    }
   }
   function bindTwoWay(el, stateName, store, context) {
     const update = () => {

@@ -63,6 +63,34 @@ export function bindRead(
   return () => store.unsubscribe(stateName, update);
 }
 
+/**
+ * Resolve a text template with inline @identifier references.
+ * e.g. "Hello, @name" — subscribes to every referenced state name
+ * and re-renders whenever any of them change.
+ */
+export function bindText(
+  el: HTMLElement,
+  template: string,
+  store: Store,
+  context: RenderContext,
+): void {
+  const refs = [...template.matchAll(/@([\w-]+(?:\.[\w-]+)*)/g)].map(m => m[1]!);
+  if (refs.length === 0) {
+    el.textContent = template;
+    return;
+  }
+  const update = () => {
+    el.textContent = template.replace(
+      /@([\w-]+(?:\.[\w-]+)*)/g,
+      (_, name) => String(store.get(name, context) ?? ''),
+    );
+  };
+  update();
+  for (const ref of [...new Set(refs)]) {
+    store.subscribe(ref, update);
+  }
+}
+
 /** Wire a two-way binding between an input element and state. */
 export function bindTwoWay(
   el: HTMLInputElement | HTMLSelectElement,
