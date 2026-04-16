@@ -43,37 +43,41 @@ Target: ~150 lines of dedicated reactive code. Do not import Alpine or any other
 
 ---
 
-## Milestone 1 — Hello workbook
+## Milestone 1 — Hello workbook ✓ COMPLETE (commit 4e5def5)
 
-**Goal:** Render a single working screen in a browser.
+**Shipped:**
+- [x] `mere-runtime.js` — 9KB gzipped, single bundled file
+- [x] Parser: `<workbook>`, `<state>`, `<computed>`, `<actions>`, `<screen>`
+- [x] Reactive state store with subscription-based bindings
+- [x] All 25 semantic elements registered
+- [x] Sigils: `@`, `~`, `!`, `?`
+- [x] `item.field` in loops
+- [x] `classic-light` theme — full personality
+- [x] Two-screen inbox.mp with mock data, tab filtering, navigation
+- [x] Dev server with `.mp → text/html` MIME proxy (Safari fix)
 
-**Completion condition:** A `.mp` file containing an inbox screen opens in Chrome, renders a styled inbox with a working tab-bar, a list of messages from mock state, and tapping a message logs a `message-opened` event to the console.
-
-**Build:**
-- [ ] `mere-runtime.js` — single bundled file, ~300-500 lines TS compiled to JS
-- [ ] Parser: `<workbook>`, `<state>`, `<computed>`, `<actions>`, one `<screen>`
-- [ ] Reactive state with Proxy-based observables
-- [ ] Elements: `screen`, `header`, `heading`, `badge`, `tab-bar`, `tab`, `message-list`, `message-card`, `avatar`, `subtitle`, `timestamp`, `navigation-bar`, `nav-item`
-- [ ] Sigils: `@`, `~`, `!`, `?`
-- [ ] `item.field` in loops
-- [ ] Theme: `classic-light` (CSS custom properties)
-- [ ] Mock data baked into workbook state (no persistence yet)
+**Also shipped ahead of schedule (was Milestone 2):**
+- [x] Multiple `<screen>` elements and navigation
+- [x] `go-to` action
+- [x] `toggle`, `form`, `field`, `button`, `paragraph` elements
+- [x] Multi-argument action invocation
+- [x] Nested state path access (`@selected-message.subject`)
 
 ---
 
-## Milestone 2 — Two screens and navigation
+## Milestone 2 — State wiring, `send-reply`, and second workbook
 
-**Goal:** Full navigation between screens with the complete element vocabulary.
+**Goal:** Every element in inbox.mp is fully wired. A second workbook proves the format generalises.
 
-**Completion condition:** Tapping a message on the inbox navigates to message-detail, shows the selected message, back button returns to inbox.
+**Completion condition:** Reply draft persists in state while typing. Send clears the draft. A second `.mp` workbook (different use case) renders correctly from the spec alone.
 
 **Build:**
-- [ ] Parser: multiple `<screen>` elements
-- [ ] `go-to` action — switches between screens
-- [ ] `message-detail` screen (with all six v0.1 gap resolutions)
-- [ ] Elements: `toggle`, `form`, `field`, `button`, `paragraph`
-- [ ] Multi-argument action invocation (`!action with a b c`)
-- [ ] Nested state path access (`@selected-message.subject`)
+- [ ] Wire `reply-draft` state in inbox.mp — field two-way bind works end to end
+- [ ] Implement `send-reply` action — appends to sent folder, clears draft, navigates back
+- [ ] `archive-message` action — moves message to archive folder, navigates to inbox
+- [ ] Fix `nav-item` positional attr parsing — back button and nav icons reliable
+- [ ] LLM generation test — paste spec quick-reference, generate a new screen, runtime renders it without errors
+- [ ] Second example workbook: a different use case (e.g. habit tracker or inventory)
 
 ---
 
