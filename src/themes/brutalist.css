@@ -1,0 +1,259 @@
+/* ── Mere: brutalist theme ──────────────────────────────────────────────────── */
+/* Hard edges. Heavy type. No shadows. No radius. Aggressive contrast.         */
+/* Inspired by: brutalist.website, early web, raw industrial design.            */
+
+:root {
+  --mp-font: 'Arial Black', 'Arial Bold', Gadget, sans-serif;
+
+  /* Palette — stark black and white with one hot accent */
+  --mp-bg: #ffffff;
+  --mp-bg-secondary: #f0f0f0;
+  --mp-bg-hover: #e0e0e0;
+  --mp-bg-active: #000000;
+  --mp-border: #000000;
+  --mp-border-strong: #000000;
+
+  --mp-text: #000000;
+  --mp-text-secondary: #333333;
+  --mp-text-tertiary: #666666;
+  --mp-text-inverse: #ffffff;
+
+  --mp-accent: #ff0000;
+  --mp-accent-hover: #cc0000;
+  --mp-accent-subtle: #fff0f0;
+
+  --mp-danger: #ff0000;
+  --mp-success: #006600;
+
+  /* Geometry — zero radius, hard edges */
+  --mp-radius-sm: 0px;
+  --mp-radius: 0px;
+  --mp-radius-lg: 0px;
+
+  --mp-space-xs: 4px;
+  --mp-space-sm: 8px;
+  --mp-space-md: 14px;
+  --mp-space-lg: 20px;
+  --mp-space-xl: 28px;
+
+  --mp-shadow-sm: none;
+  --mp-shadow: none;
+
+  /* Typography — heavy */
+  --mp-text-xs: 11px;
+  --mp-text-sm: 13px;
+  --mp-text-base: 15px;
+  --mp-text-lg: 18px;
+  --mp-text-xl: 22px;
+  --mp-text-2xl: 28px;
+
+  --mp-weight-normal: 700;
+  --mp-weight-medium: 700;
+  --mp-weight-semibold: 900;
+  --mp-weight-bold: 900;
+
+  --mp-transition: 0ms;
+}
+
+.mp-workbook, .mp-workbook * { box-sizing: border-box; }
+
+.mp-workbook {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: 700;
+  color: var(--mp-text);
+  background: var(--mp-bg);
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Screen ─────────────────────────────────────────────────────────────────── */
+
+.mp-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--mp-bg);
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  border-left: 3px solid #000;
+  border-right: 3px solid #000;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────────── */
+
+.mp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-space-sm);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  background: #000000;
+  color: #ffffff;
+  border-bottom: 3px solid #000;
+  min-height: 54px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.mp-heading {
+  font-size: var(--mp-text-xl);
+  font-weight: 900;
+  color: var(--mp-text);
+  margin: 0;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+}
+.mp-header .mp-heading {
+  font-size: var(--mp-text-lg);
+  color: #ffffff;
+  text-transform: uppercase;
+}
+
+.mp-subtitle { font-size: var(--mp-text-sm); font-weight: 700; color: var(--mp-text-secondary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-paragraph { font-size: var(--mp-text-base); font-weight: 700; color: var(--mp-text); line-height: 1.5; margin: var(--mp-space-sm) 0; }
+.mp-timestamp { font-size: var(--mp-text-xs); font-weight: 700; color: var(--mp-text-tertiary); white-space: nowrap; font-family: monospace; }
+
+/* ── Badge ──────────────────────────────────────────────────────────────────── */
+
+.mp-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 22px; height: 22px; padding: 0 6px;
+  background: var(--mp-accent); color: #ffffff;
+  font-size: 11px; font-weight: 900; font-family: monospace;
+  border: 2px solid #000; line-height: 1;
+}
+
+/* ── Avatar ─────────────────────────────────────────────────────────────────── */
+
+.mp-avatar {
+  width: 40px; height: 40px; border: 3px solid #000;
+  background: #000; color: #fff;
+  font-size: var(--mp-text-sm); font-weight: 900;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden;
+  font-family: monospace;
+}
+.mp-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+.mp-icon { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; font-size: 16px; color: #ffffff; }
+
+/* ── Tab bar ────────────────────────────────────────────────────────────────── */
+
+.mp-tab-bar {
+  display: flex; gap: 0;
+  padding: 0;
+  background: var(--mp-bg-secondary);
+  border-bottom: 3px solid #000;
+  overflow-x: auto; scrollbar-width: none;
+}
+.mp-tab-bar::-webkit-scrollbar { display: none; }
+
+.mp-tab {
+  flex: 1; padding: var(--mp-space-md) var(--mp-space-sm);
+  background: none; border: none; border-right: 2px solid #000;
+  font-family: var(--mp-font); font-size: var(--mp-text-sm);
+  font-weight: 900; color: #000; cursor: pointer;
+  white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em;
+}
+.mp-tab:last-child { border-right: none; }
+.mp-tab:hover { background: var(--mp-bg-hover); }
+.mp-tab--active { background: #000; color: #fff; }
+
+/* ── Navigation bar ─────────────────────────────────────────────────────────── */
+
+.mp-navigation-bar {
+  display: flex; background: #000;
+  border-top: 3px solid #000;
+  padding: 0;
+  margin-top: auto;
+}
+.mp-navigation-bar--top { border-top: none; border-bottom: 3px solid #000; margin-top: 0; }
+
+.mp-nav-item {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 0; padding: var(--mp-space-md) var(--mp-space-sm);
+  background: none; border: none; border-right: 2px solid #333;
+  font-family: var(--mp-font); font-size: 10px; font-weight: 900;
+  color: #ffffff; cursor: pointer; min-height: 48px; text-transform: uppercase;
+}
+.mp-nav-item:last-child { border-right: none; }
+.mp-nav-item:hover { background: #222; color: var(--mp-accent); }
+
+/* ── Lists ──────────────────────────────────────────────────────────────────── */
+
+.mp-message-list, .mp-card-list, .mp-list {
+  display: flex; flex-direction: column; flex: 1; overflow-y: auto;
+}
+
+/* ── Message card ───────────────────────────────────────────────────────────── */
+
+.mp-message-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px var(--mp-space-md);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  border-bottom: 2px solid #000;
+  background: var(--mp-bg);
+  align-items: start;
+}
+.mp-message-card:hover { background: var(--mp-bg-secondary); }
+.mp-message-card:active { background: #000; color: #fff; }
+.mp-message-card .mp-avatar { grid-row: 1 / 3; }
+.mp-message-card .mp-heading { font-size: var(--mp-text-base); font-weight: 900; }
+.mp-message-card .mp-subtitle { grid-column: 2; font-weight: 700; }
+.mp-message-card .mp-timestamp { grid-row: 1; }
+
+/* ── Card ───────────────────────────────────────────────────────────────────── */
+
+.mp-card {
+  background: var(--mp-bg);
+  border: 3px solid #000;
+  padding: var(--mp-space-lg);
+  margin: var(--mp-space-md);
+}
+.mp-card .mp-header { border: none; background: none; padding: 0; margin-bottom: var(--mp-space-md); position: static; color: #000; }
+.mp-card .mp-header .mp-heading { color: #000; }
+
+/* ── Form & inputs ──────────────────────────────────────────────────────────── */
+
+.mp-form { display: flex; flex-direction: column; gap: var(--mp-space-md); padding: var(--mp-space-lg); }
+.mp-field { display: flex; flex-direction: column; gap: var(--mp-space-xs); }
+
+.mp-field__input {
+  font-family: monospace; font-size: var(--mp-text-base); font-weight: 700; color: #000;
+  background: #fff; border: 3px solid #000;
+  padding: var(--mp-space-sm) var(--mp-space-md); width: 100%; outline: none;
+}
+.mp-field__input:focus { background: #fffbe6; }
+.mp-field__input::placeholder { color: #999; font-weight: 400; }
+
+.mp-button {
+  font-family: var(--mp-font); font-size: var(--mp-text-base); font-weight: 900;
+  color: #fff; background: #000; border: 3px solid #000;
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer; width: 100%; min-height: 44px; text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.mp-button:hover { background: var(--mp-accent); border-color: var(--mp-accent); }
+.mp-button:active { transform: translate(2px, 2px); }
+
+/* ── Toggle ─────────────────────────────────────────────────────────────────── */
+
+.mp-toggle { display: flex; align-items: center; gap: var(--mp-space-md); padding: var(--mp-space-md) var(--mp-space-lg); cursor: pointer; border-bottom: 2px solid #000; }
+.mp-toggle__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-toggle__track { display: inline-block; width: 44px; height: 24px; background: #fff; border: 3px solid #000; position: relative; flex-shrink: 0; }
+.mp-toggle__track::after { content: ''; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; background: #000; }
+.mp-toggle__input:checked + .mp-toggle__track { background: #000; }
+.mp-toggle__input:checked + .mp-toggle__track::after { transform: translateX(18px); background: #fff; }
+.mp-toggle__label { font-size: var(--mp-text-base); font-weight: 900; color: #000; text-transform: uppercase; }
+
+.mp-modal { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: flex; align-items: flex-end; z-index: 100; }
+.mp-modal > * { width: 100%; max-height: 80dvh; background: #fff; border-top: 4px solid #000; padding: var(--mp-space-xl); overflow-y: auto; }
+.mp-toast { position: fixed; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: #000; color: #fff; font-size: var(--mp-text-sm); font-weight: 900; padding: var(--mp-space-sm) var(--mp-space-lg); border: 3px solid #ff0000; z-index: 200; white-space: nowrap; font-family: monospace; text-transform: uppercase; }
+.mp-banner { background: var(--mp-accent); color: #fff; font-weight: 900; padding: var(--mp-space-md) var(--mp-space-lg); text-transform: uppercase; }

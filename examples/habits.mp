@@ -8,7 +8,7 @@
 </head>
 <body style="margin:0">
 
-<workbook theme="classic-light">
+<workbook theme="brutalist">
 
   <state>
     <value name="habits" type="list"/>

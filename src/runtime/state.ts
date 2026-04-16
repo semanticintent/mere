@@ -1,4 +1,5 @@
 import type { StateDecl, ComputedDecl, WorkbookDecl, RenderContext } from './types.js';
+import type { Persist } from './persist.js';
 
 type Subscriber = () => void;
 
@@ -9,6 +10,8 @@ export class Store {
   private subs = new Map<string, Set<Subscriber>>();
   private computed: ComputedDecl[] = [];
   private stateDecls = new Map<string, StateDecl>();
+  private persist: Persist | null = null;
+  private saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   init(decl: WorkbookDecl): void {
     this.computed = decl.computed;
@@ -22,6 +25,20 @@ export class Store {
     // Initialise computed names so subscribers can be registered
     for (const c of decl.computed) {
       this.values.set(c.name, this.evalComputed(c));
+    }
+  }
+
+  // Called after persist.init() resolves — loads saved values and overrides defaults
+  async loadPersisted(persist: Persist): Promise<void> {
+    this.persist = persist;
+    for (const [name, decl] of this.stateDecls) {
+      if (!decl.persist) continue;
+      const saved = await persist.load(name);
+      if (saved !== undefined) {
+        this.values.set(name, saved);
+        this.notify(name);
+        this.recomputeDepending(name);
+      }
     }
   }
 
@@ -62,6 +79,21 @@ export class Store {
     this.values.set(name, value);
     this.notify(name);
     this.recomputeDepending(name);
+    this.scheduleSave(name);
+  }
+
+  private scheduleSave(name: string): void {
+    if (!this.persist) return;
+    const decl = this.stateDecls.get(name);
+    if (!decl?.persist) return;
+    // Debounce: wait 500ms after last change before writing to disk
+    const existing = this.saveTimers.get(name);
+    if (existing) clearTimeout(existing);
+    const timer = setTimeout(() => {
+      this.persist!.save(name, this.values.get(name));
+      this.saveTimers.delete(name);
+    }, 500);
+    this.saveTimers.set(name, timer);
   }
 
   subscribe(name: string, fn: Subscriber): void {
