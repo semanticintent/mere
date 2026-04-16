@@ -87,7 +87,23 @@ if (serve) {
   await ctx.watch();
   console.log('Watching for changes...');
 } else {
+  // Build runtime
   await ctx.rebuild();
   await ctx.dispose();
   console.log('Built dist/mere-runtime.js');
+
+  // Build CLI
+  await esbuild.build({
+    entryPoints: ['src/cli/index.ts'],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    target: 'node22',
+    outfile: 'dist/mere-cli.js',
+    // shebang is already in src/cli/index.ts
+    external: ['node-html-parser'], // keep as external dep, not inlined
+    sourcemap: false,
+    minify: false,
+  });
+  console.log('Built dist/mere-cli.js');
 }
