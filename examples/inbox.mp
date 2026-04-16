@@ -12,8 +12,9 @@
 
   <state>
     <value name="current-tab" type="text" default="inbox"/>
-    <value name="messages" type="list" default="[]"/>
+    <value name="messages" type="list"/>
     <value name="selected-message" type="map"/>
+    <value name="reply-draft" type="text" default=""/>
   </state>
 
   <computed>
@@ -25,6 +26,15 @@
     <action name="open-message" takes="id">
       set selected-message to messages where id = id
       go-to message-detail
+    </action>
+    <action name="archive-message" takes="id">
+      set messages.folder to "archive" where id = id
+      go-to inbox
+    </action>
+    <action name="send-reply" takes="id">
+      add-to messages sender "Me" body reply-draft folder "sent" read "true"
+      clear reply-draft
+      go-to inbox
     </action>
   </actions>
 
@@ -63,6 +73,7 @@
     <header>
       <nav-item "inbox">Back</nav-item>
       <heading @selected-message.subject/>
+      <nav-item !archive-message with selected-message.id>Archive</nav-item>
     </header>
 
     <card>
@@ -77,7 +88,7 @@
     <toggle ~selected-message.read>Mark as read</toggle>
 
     <form>
-      <field name="reply-text" ~reply-draft placeholder="Write a reply…"/>
+      <field ~reply-draft placeholder="Write a reply…"/>
       <button !send-reply with selected-message.id>Send</button>
     </form>
 
@@ -86,65 +97,41 @@
 </workbook>
 
 <script>
-// ── Seed mock data ─────────────────────────────────────────────────────────────
-// In a real workbook, data lives in persisted state.
-// For Milestone 1, we inject it after the runtime boots.
+// Seed mock data — in production this lives in persisted state (Milestone 3)
 document.addEventListener('DOMContentLoaded', () => {
-  // Give the runtime a tick to bootstrap
   setTimeout(() => {
     const store = window.__mereStore;
     if (!store) return;
-
     store.set('messages', [
       {
-        id: '1',
-        folder: 'inbox',
-        sender: 'Alice Chen',
-        subject: 'Q2 planning doc is ready for review',
-        body: 'Hi — I've finished the Q2 planning document. It covers resource allocation, key milestones, and the three initiatives we discussed last week. Let me know if you want to walk through it together before the Monday standup.',
-        avatar: 'AC',
-        'received-at': new Date(Date.now() - 12 * 60000).toISOString(),
-        read: false,
+        id: '1', folder: 'inbox',
+        sender: 'Alice Chen', subject: 'Q2 planning doc is ready for review',
+        body: 'Hi — I\'ve finished the Q2 planning document. It covers resource allocation, key milestones, and the three initiatives we discussed last week. Let me know if you want to walk through it together before the Monday standup.',
+        avatar: 'AC', 'received-at': new Date(Date.now() - 12 * 60000).toISOString(), read: false,
       },
       {
-        id: '2',
-        folder: 'inbox',
-        sender: 'Ben Torres',
-        subject: 'Quick question about the API contract',
+        id: '2', folder: 'inbox',
+        sender: 'Ben Torres', subject: 'Quick question about the API contract',
         body: 'Hey — just wanted to confirm: are we versioning the API at /v1/ or using Accept-Version headers? The backend team has been split on this and we need to lock it in before Thursday.',
-        avatar: 'BT',
-        'received-at': new Date(Date.now() - 47 * 60000).toISOString(),
-        read: false,
+        avatar: 'BT', 'received-at': new Date(Date.now() - 47 * 60000).toISOString(), read: false,
       },
       {
-        id: '3',
-        folder: 'inbox',
-        sender: 'Sara Kim',
-        subject: 'Updated design tokens — please review',
-        body: 'Attached are the updated design tokens for the new component library. The main changes are in the spacing scale (we moved to a 4px base) and the color ramp for the accent palette. Figma file is linked in the doc.',
-        avatar: 'SK',
-        'received-at': new Date(Date.now() - 2.5 * 3600000).toISOString(),
-        read: true,
+        id: '3', folder: 'inbox',
+        sender: 'Sara Kim', subject: 'Updated design tokens — please review',
+        body: 'Attached are the updated design tokens for the new component library. The main changes are in the spacing scale (we moved to a 4px base) and the color ramp for the accent palette.',
+        avatar: 'SK', 'received-at': new Date(Date.now() - 2.5 * 3600000).toISOString(), read: true,
       },
       {
-        id: '4',
-        folder: 'inbox',
-        sender: 'Marcus Webb',
-        subject: 'Onboarding notes from this morning',
-        body: 'Good meeting this morning. Here are my notes: we should prioritise the empty state screens, the loading skeleton, and the error boundary before shipping. I'll open tickets for each.',
-        avatar: 'MW',
-        'received-at': new Date(Date.now() - 5 * 3600000).toISOString(),
-        read: true,
+        id: '4', folder: 'inbox',
+        sender: 'Marcus Webb', subject: 'Onboarding notes from this morning',
+        body: 'Good meeting this morning. Here are my notes: we should prioritise the empty state screens, the loading skeleton, and the error boundary before shipping.',
+        avatar: 'MW', 'received-at': new Date(Date.now() - 5 * 3600000).toISOString(), read: true,
       },
       {
-        id: '5',
-        folder: 'archive',
-        sender: 'Priya Nair',
-        subject: 'Invoice #2041 approved',
-        body: 'Your invoice #2041 for March has been approved and will be processed in the next payment run (April 18). Let me know if you have any questions.',
-        avatar: 'PN',
-        'received-at': new Date(Date.now() - 2 * 86400000).toISOString(),
-        read: true,
+        id: '5', folder: 'archive',
+        sender: 'Priya Nair', subject: 'Invoice #2041 approved',
+        body: 'Your invoice #2041 for March has been approved and will be processed in the next payment run (April 18).',
+        avatar: 'PN', 'received-at': new Date(Date.now() - 2 * 86400000).toISOString(), read: true,
       },
     ]);
   }, 50);

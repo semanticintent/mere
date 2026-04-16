@@ -83,8 +83,39 @@ function parseActionBody(body: string): ActionStatement[] {
       });
       continue;
     }
+
+    // clear <state>
+    const clearMatch = line.match(/^clear\s+(\S+)$/);
+    if (clearMatch) {
+      stmts.push({ kind: 'clear', target: clearMatch[1]! });
+      continue;
+    }
+
+    // add-to <list> key value key value ...
+    // e.g. add-to messages sender "Me" body reply-draft folder "sent"
+    const addToMatch = line.match(/^add-to\s+(\S+)\s+(.+)$/);
+    if (addToMatch) {
+      const fields = parseKeyValuePairs(addToMatch[2]!.trim());
+      stmts.push({ kind: 'add-to', list: addToMatch[1]!, fields });
+      continue;
+    }
   }
   return stmts;
+}
+
+// Parse "key1 value1 key2 value2 ..." into [{key, value}] pairs.
+// Values can be quoted strings ("hello") or bare identifiers (reply-draft).
+function parseKeyValuePairs(str: string): Array<{ key: string; value: string }> {
+  const pairs: Array<{ key: string; value: string }> = [];
+  // Tokenise: quoted strings stay together, bare words split on space
+  const tokens: string[] = [];
+  const tokenRe = /"[^"]*"|\S+/g;
+  let m: RegExpExecArray | null;
+  while ((m = tokenRe.exec(str)) !== null) tokens.push(m[0]!);
+  for (let i = 0; i + 1 < tokens.length; i += 2) {
+    pairs.push({ key: tokens[i]!, value: tokens[i + 1]! });
+  }
+  return pairs;
 }
 
 // ─── Screens ──────────────────────────────────────────────────────────────────
@@ -127,39 +158,65 @@ const PASSTHROUGH_ATTRS = new Set([
 
 function parseBindings(el: Element): Binding {
   const binding: Binding = {};
-  for (const attr of Array.from(el.attributes)) {
+  const attrs = Array.from(el.attributes);
+  let i = 0;
+
+  while (i < attrs.length) {
+    const attr = attrs[i]!;
     const name = attr.name;
     const value = attr.value;
 
     if (name.startsWith('@')) {
       binding.read = name.slice(1) || value;
+
     } else if (name.startsWith('~')) {
       binding.twoWay = name.slice(1) || value;
+
     } else if (name.startsWith('!')) {
-      const actionStr = name.slice(1) + (value ? ' ' + value : '');
-      // "action-name with a b c"  or just "action-name"
-      const m = actionStr.match(/^(\S+)(?:\s+with\s+(.+))?$/);
-      if (m) {
-        const args = m[2] ? m[2].trim().replace(/,/g, ' ').split(/\s+/) : [];
-        binding.action = { name: m[1]!, args };
+      // !open-message with item.id
+      // In HTML this becomes three attributes: ["!open-message", "with", "item.id"]
+      // Collect everything after "with" as positional args.
+      const actionName = name.slice(1);
+      const args: string[] = [];
+
+      if (value) {
+        // !action="with a b" or !action="a b" — args embedded in attr value
+        const m = value.match(/^(?:with\s+)?(.+)$/);
+        if (m) args.push(...m[1]!.replace(/,/g, ' ').split(/\s+/).filter(Boolean));
+      } else {
+        // Look ahead for bare "with" attribute, then collect following attr names as args
+        let j = i + 1;
+        if (j < attrs.length && attrs[j]!.name === 'with') {
+          j++;
+          while (j < attrs.length) {
+            const next = attrs[j]!;
+            if (next.name.startsWith('@') || next.name.startsWith('~') ||
+                next.name.startsWith('!') || next.name.startsWith('?') ||
+                PASSTHROUGH_ATTRS.has(next.name)) break;
+            args.push(next.name);
+            j++;
+          }
+          i = j - 1; // advance past all consumed arg attrs
+        }
       }
+      binding.action = { name: actionName, args };
+
     } else if (name.startsWith('?')) {
       binding.intent = value || name.slice(1);
-    } else if (!PASSTHROUGH_ATTRS.has(name)) {
-      // Could be a positional bare string attribute like tab "inbox" → name="inbox"
-      if (!name.includes('-') || name === 'nav-item') {
-        // ignore unknown structural attrs
-      }
     }
+
+    i++;
   }
 
-  // First attribute that looks like a bare positional name/literal
-  const firstAttr = el.attributes[0];
-  if (firstAttr && !firstAttr.name.startsWith('@') && !firstAttr.name.startsWith('~') &&
+  // First non-sigil, non-passthrough attribute is a positional identifier.
+  // <tab "inbox">  → HTML parses as <tab inbox=""> → positional = "inbox"
+  // <navigation-bar "bottom"> → positional = "bottom"
+  const firstAttr = attrs[0];
+  if (firstAttr &&
+      !firstAttr.name.startsWith('@') && !firstAttr.name.startsWith('~') &&
       !firstAttr.name.startsWith('!') && !firstAttr.name.startsWith('?') &&
       firstAttr.name !== 'name' && firstAttr.name !== 'theme' &&
       !PASSTHROUGH_ATTRS.has(firstAttr.name)) {
-    // e.g. <tab "inbox"> or <nav-item "inbox" inbox>
     if (firstAttr.value) {
       binding.literal = firstAttr.value;
     } else {

@@ -8,11 +8,13 @@ export class Store {
   private values = new Map<string, unknown>();
   private subs = new Map<string, Set<Subscriber>>();
   private computed: ComputedDecl[] = [];
+  private stateDecls = new Map<string, StateDecl>();
 
   init(decl: WorkbookDecl): void {
     this.computed = decl.computed;
 
     for (const s of decl.state) {
+      this.stateDecls.set(s.name, s);
       const initial = s.default !== undefined ? s.default : defaultFor(s.type);
       this.values.set(s.name, initial);
     }
@@ -130,6 +132,28 @@ export class Store {
         }
       } else if (stmt.kind === 'go-to') {
         onGoTo(stmt.screen);
+
+      } else if (stmt.kind === 'clear') {
+        const decl = this.stateDecls.get(stmt.target);
+        const resetVal = decl?.default !== undefined
+          ? decl.default
+          : defaultFor(decl?.type ?? 'text');
+        this.set(stmt.target, resetVal);
+
+      } else if (stmt.kind === 'add-to') {
+        const list = this.values.get(stmt.list);
+        if (Array.isArray(list)) {
+          const item: Record<string, unknown> = {};
+          for (const { key, value } of stmt.fields) {
+            if (value.startsWith('"') && value.endsWith('"')) {
+              item[key] = value.slice(1, -1);
+            } else {
+              item[key] = scope[value] ?? this.resolveArg(value, context);
+            }
+          }
+          if (!item['id']) item['id'] = String(Date.now() + Math.random());
+          this.set(stmt.list, [...list, item]);
+        }
       }
     }
   }
@@ -242,6 +266,10 @@ function evalWhere(
   } else {
     right = scope?.[trimmed] ?? store.get(trimmed);
   }
+
+  // "all" is a magic passthrough — show everything, no filter applied.
+  // This enables the common pattern: <tab "all">All</tab> as the first tab.
+  if (right === 'all' || right === '') return true;
 
   return left === right;
 }

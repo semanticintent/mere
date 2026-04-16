@@ -145,6 +145,17 @@ Computed values are derived from state. They are lazy and memoized — invalidat
 Computed values are read-only. Two-way binding to a computed value is an error (MPD-007).
 Circular computed dependencies are an error (MPD-008).
 
+**The `"all"` convention:** When the right-hand side of a `where` clause resolves to `"all"` or `""`, the filter is skipped and all items are returned. This enables the standard "All / Category / Category" tab pattern without special-casing in the workbook.
+
+```xml
+<tab-bar ~current-tab>
+  <tab "all">All</tab>
+  <tab "reading">Reading</tab>
+  <tab "finished">Finished</tab>
+</tab-bar>
+<!-- visible-books where="status = current-tab" shows all when current-tab = "all" -->
+```
+
 ---
 
 ## Actions

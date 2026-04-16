@@ -20,7 +20,9 @@ export interface ComputedDecl {
 
 export type ActionStatement =
   | { kind: 'set'; target: string; value: string; where?: string }
-  | { kind: 'go-to'; screen: string };
+  | { kind: 'go-to'; screen: string }
+  | { kind: 'clear'; target: string }
+  | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> };
 
 export interface ActionDecl {
   name: string;

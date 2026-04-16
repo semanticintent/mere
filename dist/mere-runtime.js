@@ -87,8 +87,30 @@ var Mere = (() => {
         });
         continue;
       }
+      const clearMatch = line.match(/^clear\s+(\S+)$/);
+      if (clearMatch) {
+        stmts.push({ kind: "clear", target: clearMatch[1] });
+        continue;
+      }
+      const addToMatch = line.match(/^add-to\s+(\S+)\s+(.+)$/);
+      if (addToMatch) {
+        const fields = parseKeyValuePairs(addToMatch[2].trim());
+        stmts.push({ kind: "add-to", list: addToMatch[1], fields });
+        continue;
+      }
     }
     return stmts;
+  }
+  function parseKeyValuePairs(str) {
+    const pairs = [];
+    const tokens = [];
+    const tokenRe = /"[^"]*"|\S+/g;
+    let m;
+    while ((m = tokenRe.exec(str)) !== null) tokens.push(m[0]);
+    for (let i = 0; i + 1 < tokens.length; i += 2) {
+      pairs.push({ key: tokens[i], value: tokens[i + 1] });
+    }
+    return pairs;
   }
   function parseScreens(screenEls) {
     return Array.from(screenEls).map((s) => {
@@ -122,7 +144,10 @@ var Mere = (() => {
   ]);
   function parseBindings(el) {
     const binding = {};
-    for (const attr of Array.from(el.attributes)) {
+    const attrs = Array.from(el.attributes);
+    let i = 0;
+    while (i < attrs.length) {
+      const attr = attrs[i];
       const name = attr.name;
       const value = attr.value;
       if (name.startsWith("@")) {
@@ -130,20 +155,31 @@ var Mere = (() => {
       } else if (name.startsWith("~")) {
         binding.twoWay = name.slice(1) || value;
       } else if (name.startsWith("!")) {
-        const actionStr = name.slice(1) + (value ? " " + value : "");
-        const m = actionStr.match(/^(\S+)(?:\s+with\s+(.+))?$/);
-        if (m) {
-          const args = m[2] ? m[2].trim().replace(/,/g, " ").split(/\s+/) : [];
-          binding.action = { name: m[1], args };
+        const actionName = name.slice(1);
+        const args = [];
+        if (value) {
+          const m = value.match(/^(?:with\s+)?(.+)$/);
+          if (m) args.push(...m[1].replace(/,/g, " ").split(/\s+/).filter(Boolean));
+        } else {
+          let j = i + 1;
+          if (j < attrs.length && attrs[j].name === "with") {
+            j++;
+            while (j < attrs.length) {
+              const next = attrs[j];
+              if (next.name.startsWith("@") || next.name.startsWith("~") || next.name.startsWith("!") || next.name.startsWith("?") || PASSTHROUGH_ATTRS.has(next.name)) break;
+              args.push(next.name);
+              j++;
+            }
+            i = j - 1;
+          }
         }
+        binding.action = { name: actionName, args };
       } else if (name.startsWith("?")) {
         binding.intent = value || name.slice(1);
-      } else if (!PASSTHROUGH_ATTRS.has(name)) {
-        if (!name.includes("-") || name === "nav-item") {
-        }
       }
+      i++;
     }
-    const firstAttr = el.attributes[0];
+    const firstAttr = attrs[0];
     if (firstAttr && !firstAttr.name.startsWith("@") && !firstAttr.name.startsWith("~") && !firstAttr.name.startsWith("!") && !firstAttr.name.startsWith("?") && firstAttr.name !== "name" && firstAttr.name !== "theme" && !PASSTHROUGH_ATTRS.has(firstAttr.name)) {
       if (firstAttr.value) {
         binding.literal = firstAttr.value;
@@ -179,9 +215,11 @@ var Mere = (() => {
     values = /* @__PURE__ */ new Map();
     subs = /* @__PURE__ */ new Map();
     computed = [];
+    stateDecls = /* @__PURE__ */ new Map();
     init(decl) {
       this.computed = decl.computed;
       for (const s of decl.state) {
+        this.stateDecls.set(s.name, s);
         const initial = s.default !== void 0 ? s.default : defaultFor(s.type);
         this.values.set(s.name, initial);
       }
@@ -274,6 +312,24 @@ var Mere = (() => {
           }
         } else if (stmt.kind === "go-to") {
           onGoTo(stmt.screen);
+        } else if (stmt.kind === "clear") {
+          const decl = this.stateDecls.get(stmt.target);
+          const resetVal = decl?.default !== void 0 ? decl.default : defaultFor(decl?.type ?? "text");
+          this.set(stmt.target, resetVal);
+        } else if (stmt.kind === "add-to") {
+          const list = this.values.get(stmt.list);
+          if (Array.isArray(list)) {
+            const item = {};
+            for (const { key, value } of stmt.fields) {
+              if (value.startsWith('"') && value.endsWith('"')) {
+                item[key] = value.slice(1, -1);
+              } else {
+                item[key] = scope[value] ?? this.resolveArg(value, context);
+              }
+            }
+            if (!item["id"]) item["id"] = String(Date.now() + Math.random());
+            this.set(stmt.list, [...list, item]);
+          }
         }
       }
     }
@@ -363,6 +419,7 @@ var Mere = (() => {
     } else {
       right = scope?.[trimmed] ?? store.get(trimmed);
     }
+    if (right === "all" || right === "") return true;
     return left === right;
   }
 
