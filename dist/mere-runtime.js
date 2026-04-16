@@ -38,7 +38,7 @@ var Mere = (() => {
     return Array.from(stateEl.querySelectorAll(":scope > value")).map((v) => ({
       name: req(v, "name"),
       type: v.getAttribute("type") ?? "text",
-      default: parseDefault(v.getAttribute("default"), v.getAttribute("type") ?? "text"),
+      default: parseDefault(v.getAttribute("value") ?? v.getAttribute("default"), v.getAttribute("type") ?? "text"),
       persist: v.hasAttribute("persist")
     }));
   }
