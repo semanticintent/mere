@@ -2,7 +2,7 @@
 
 ## What this is
 
-Mere is a workbook format for apps. A `.mp` file is a single portable artifact containing screens, state, behavior, theme, and data. Open it — it runs. Send it — it travels. No server, no account, no build step.
+Mere is a workbook format for apps. A `.mp.html` file is a single portable artifact containing screens, state, behavior, theme, and data. Open it — it runs. Send it — it travels. No server, no account, no build step.
 
 The name is the philosophy: a mere is a lake (still, self-contained) and "mere" means *only, just* — it's merely a file. That is enough.
 
@@ -40,4 +40,8 @@ mere run <file>      run a workbook
 
 ## File extension
 
-`.mp` — Mere Package. A self-contained workbook artifact.
+`.mp.html` — Mere Package. A self-contained workbook artifact.
+- `.mp` = semantic identity: this is a Mere package
+- `.html` = technical format: this is an HTML document
+- Double-clicks to open in any browser, no MIME registration required
+- CLI accepts both `.mp.html` (canonical) and `.mp` (source form)
