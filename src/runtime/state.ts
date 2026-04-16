@@ -196,7 +196,8 @@ export class Store {
 
   private resolveArg(arg: string, context?: RenderContext): unknown {
     if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1);
-    return this.get(arg, context);
+    const name = arg.startsWith('@') ? arg.slice(1) : arg;
+    return this.get(name, context);
   }
 
   private setWhere(

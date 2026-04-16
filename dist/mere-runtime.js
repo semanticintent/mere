@@ -366,7 +366,8 @@ var Mere = (() => {
     actions;
     resolveArg(arg, context) {
       if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1);
-      return this.get(arg, context);
+      const name = arg.startsWith("@") ? arg.slice(1) : arg;
+      return this.get(name, context);
     }
     setWhere(target, field2, where, scope, context) {
       const [listName, fieldName] = target.split(".");
