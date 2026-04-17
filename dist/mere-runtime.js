@@ -253,6 +253,9 @@ var Mere = (() => {
         }
       }
     }
+    has(name) {
+      return this.values.has(name.split(".")[0] ?? name);
+    }
     get(name, context) {
       if (name.includes(".")) {
         const parts = name.split(".");
@@ -470,8 +473,12 @@ var Mere = (() => {
       right = true;
     } else if (trimmed === "false") {
       right = false;
+    } else if (scope?.[trimmed] !== void 0) {
+      right = scope[trimmed];
+    } else if (store.has(trimmed)) {
+      right = store.get(trimmed);
     } else {
-      right = scope?.[trimmed] ?? store.get(trimmed);
+      right = trimmed;
     }
     if (right === "all" || right === "") return true;
     return left === right;

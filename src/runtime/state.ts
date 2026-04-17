@@ -42,6 +42,10 @@ export class Store {
     }
   }
 
+  has(name: string): boolean {
+    return this.values.has(name.split('.')[0] ?? name);
+  }
+
   get(name: string, context?: RenderContext): unknown {
     // Dotted path: item.field or state.field
     if (name.includes('.')) {
@@ -313,8 +317,13 @@ function evalWhere(
     right = true;
   } else if (trimmed === 'false') {
     right = false;
+  } else if (scope?.[trimmed] !== undefined) {
+    right = scope[trimmed];
+  } else if (store.has(trimmed)) {
+    right = store.get(trimmed);
   } else {
-    right = scope?.[trimmed] ?? store.get(trimmed);
+    // Unknown key — treat as a literal string value, not a missing state
+    right = trimmed;
   }
 
   // "all" is a magic passthrough — show everything, no filter applied.
