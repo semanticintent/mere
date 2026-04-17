@@ -50,6 +50,7 @@ function parseComputed(computedEl: Element | null): ComputedDecl[] {
     where: v.getAttribute('where') ?? undefined,
     op: (v.getAttribute('op') ?? undefined) as ComputedDecl['op'],
     field: v.getAttribute('field') ?? undefined,
+    by: v.getAttribute('by') ?? undefined,
   }));
 }
 
@@ -170,8 +171,8 @@ const PASSTHROUGH_ATTRS = new Set([
   'name', 'id', 'class', 'style',
   // data-table column definitions
   'field', 'label', 'as',
-  // spreadsheet / metric
-  'editable', 'format',
+  // spreadsheet / metric / kv / data-table product column
+  'editable', 'format', 'by',
 ]);
 
 function parseBindings(el: Element): Binding {

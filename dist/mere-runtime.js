@@ -65,7 +65,8 @@ var Mere = (() => {
       from: req(v, "from"),
       where: v.getAttribute("where") ?? void 0,
       op: v.getAttribute("op") ?? void 0,
-      field: v.getAttribute("field") ?? void 0
+      field: v.getAttribute("field") ?? void 0,
+      by: v.getAttribute("by") ?? void 0
     }));
   }
   function parseActions(actionsEl) {
@@ -161,9 +162,10 @@ var Mere = (() => {
     "field",
     "label",
     "as",
-    // spreadsheet / metric
+    // spreadsheet / metric / kv / data-table product column
     "editable",
-    "format"
+    "format",
+    "by"
   ]);
   function parseBindings(el) {
     const binding = {};
@@ -440,10 +442,26 @@ var Mere = (() => {
         const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
         return (a ?? 0) - (b ?? 0);
       }
+      if (c.op === "add") {
+        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
+        return (a ?? 0) + (b ?? 0);
+      }
       if (c.op === "percent") {
         const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
         if (!b) return 0;
         return Math.round((a ?? 0) / b * 100);
+      }
+      if (c.op === "percent-of") {
+        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
+        return (a ?? 0) * (b ?? 0) / 100;
+      }
+      if (c.op === "sum-product") {
+        if (!c.field || !c.by || !Array.isArray(source)) return 0;
+        const filtered2 = c.where ? source.filter((item) => evalWhere(c.where, item, this)) : source;
+        return filtered2.reduce(
+          (acc, item) => acc + toNumber(item[c.field]) * toNumber(item[c.by]),
+          0
+        );
       }
       if (!Array.isArray(source)) return c.op === "count" ? 0 : 0;
       const filtered = c.where ? source.filter((item) => evalWhere(c.where, item, this)) : source;
@@ -941,6 +959,13 @@ var Mere = (() => {
             td.textContent = formatCurrency(Number(item[field2]) || 0);
             td.style.textAlign = "right";
             td.style.fontVariantNumeric = "tabular-nums";
+          } else if (asType === "product") {
+            const byField = col.attrs["by"] ?? "";
+            const a = Number(item[field2]) || 0;
+            const b = Number(item[byField]) || 0;
+            td.textContent = formatCurrency(a * b);
+            td.style.textAlign = "right";
+            td.style.fontVariantNumeric = "tabular-nums";
           } else {
             td.textContent = value;
           }
@@ -1080,6 +1105,30 @@ var Mere = (() => {
     wrapper.appendChild(track);
     return wrapper;
   };
+  var kv = (node, store, context, onGoTo) => {
+    const el = div("kv");
+    const format = node.attrs["format"] ?? "";
+    const label = node.attrs["label"] ?? node.bindings.literal ?? node.bindings.positional ?? "";
+    const labelEl = document.createElement("span");
+    labelEl.classList.add("mp-kv__label");
+    labelEl.textContent = label;
+    const valueEl = document.createElement("span");
+    valueEl.classList.add("mp-kv__value");
+    const update = (v) => {
+      const num = parseFloat(v) || 0;
+      if (format === "currency") valueEl.textContent = formatCurrency(num);
+      else if (format === "percent") valueEl.textContent = `${num}%`;
+      else valueEl.textContent = v;
+    };
+    if (node.bindings.read) {
+      bindRead(valueEl, node.bindings.read, store, context, update);
+    } else {
+      update(node.text);
+    }
+    el.appendChild(labelEl);
+    el.appendChild(valueEl);
+    return el;
+  };
   var modal = (node, store, context, onGoTo, rc) => {
     const el = div("modal");
     el.setAttribute("role", "dialog");
@@ -1141,7 +1190,9 @@ var Mere = (() => {
     "spreadsheet": spreadsheet,
     "metric": metric,
     "metric-group": metricGroup,
-    "bar": bar
+    "bar": bar,
+    // Key-value row
+    "kv": kv
   };
   function renderChildren2(node, store, context, onGoTo) {
     const handler = ELEMENTS[node.tag];
@@ -2084,6 +2135,31 @@ var Mere = (() => {
   border-radius: 100px;
   transition: width 0.4s ease;
 }
+
+/* \u2500\u2500 Key-value row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-kv:last-of-type { border-bottom: none; }
+
+.mp-kv__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-kv__value {
+  font-size: var(--mp-text-sm);
+  font-weight: 500;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+  letter-spacing: -0.01em;
+}
 `;
 
   // src/themes/proton-mail.css
@@ -2674,6 +2750,31 @@ var Mere = (() => {
   background: var(--mp-accent);
   border-radius: 100px;
   transition: width 0.4s ease;
+}
+
+/* \u2500\u2500 Key-value row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-kv:last-of-type { border-bottom: none; }
+
+.mp-kv__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-kv__value {
+  font-size: var(--mp-text-sm);
+  font-weight: 500;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+  letter-spacing: -0.01em;
 }
 `;
 
@@ -3276,6 +3377,31 @@ var Mere = (() => {
   background: var(--mp-accent);
   border-radius: 100px;
   transition: width 0.4s ease;
+}
+
+/* \u2500\u2500 Key-value row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-kv:last-of-type { border-bottom: none; }
+
+.mp-kv__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-kv__value {
+  font-size: var(--mp-text-sm);
+  font-weight: 500;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+  letter-spacing: -0.01em;
 }
 `;
 

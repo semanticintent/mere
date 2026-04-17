@@ -11,10 +11,11 @@ export interface StateDecl {
 
 export interface ComputedDecl {
   name: string;
-  from: string;          // source state name or another computed name
+  from: string;          // source state name, computed name, or "a,b" for scalar ops
   where?: string;        // filter expression, e.g. "folder = current-tab"
-  op?: 'count' | 'sum' | 'avg' | 'subtract' | 'percent';
-  field?: string;        // numeric field to aggregate (for sum/avg)
+  op?: 'count' | 'sum' | 'avg' | 'subtract' | 'percent' | 'add' | 'percent-of' | 'sum-product';
+  field?: string;        // numeric field to aggregate (sum/avg/sum-product)
+  by?: string;           // second field for sum-product (price × qty)
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────

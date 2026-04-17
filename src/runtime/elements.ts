@@ -446,6 +446,13 @@ const dataTable: RenderFn = (node, store, context, onGoTo) => {
           td.textContent = formatCurrency(Number(item[field]) || 0);
           td.style.textAlign = 'right';
           td.style.fontVariantNumeric = 'tabular-nums';
+        } else if (asType === 'product') {
+          const byField = col.attrs['by'] ?? '';
+          const a = Number(item[field]) || 0;
+          const b = Number(item[byField]) || 0;
+          td.textContent = formatCurrency(a * b);
+          td.style.textAlign = 'right';
+          td.style.fontVariantNumeric = 'tabular-nums';
         } else {
           td.textContent = value;
         }
@@ -624,6 +631,38 @@ const bar: RenderFn = (node, store, context, onGoTo) => {
   return wrapper;
 };
 
+// ─── kv (key-value row) ───────────────────────────────────────────────────────
+
+const kv: RenderFn = (node, store, context, onGoTo) => {
+  const el = div('kv');
+  const format = node.attrs['format'] ?? '';
+  const label = node.attrs['label'] ?? node.bindings.literal ?? node.bindings.positional ?? '';
+
+  const labelEl = document.createElement('span');
+  labelEl.classList.add('mp-kv__label');
+  labelEl.textContent = label;
+
+  const valueEl = document.createElement('span');
+  valueEl.classList.add('mp-kv__value');
+
+  const update = (v: string) => {
+    const num = parseFloat(v) || 0;
+    if (format === 'currency') valueEl.textContent = formatCurrency(num);
+    else if (format === 'percent') valueEl.textContent = `${num}%`;
+    else valueEl.textContent = v;
+  };
+
+  if (node.bindings.read) {
+    bindRead(valueEl, node.bindings.read, store, context, update);
+  } else {
+    update(node.text);
+  }
+
+  el.appendChild(labelEl);
+  el.appendChild(valueEl);
+  return el;
+};
+
 // ─── modal / toast / banner ───────────────────────────────────────────────────
 
 const modal: RenderFn = (node, store, context, onGoTo, rc) => {
@@ -688,6 +727,8 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'metric': metric,
   'metric-group': metricGroup,
   'bar': bar,
+  // Key-value row
+  'kv': kv,
 };
 
 // ─── Shared render-children without circular import ───────────────────────────

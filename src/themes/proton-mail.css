@@ -586,3 +586,28 @@
   border-radius: 100px;
   transition: width 0.4s ease;
 }
+
+/* ── Key-value row ──────────────────────────────────────────────────────────── */
+
+.mp-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-kv:last-of-type { border-bottom: none; }
+
+.mp-kv__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-kv__value {
+  font-size: var(--mp-text-sm);
+  font-weight: 500;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+  letter-spacing: -0.01em;
+}

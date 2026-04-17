@@ -254,15 +254,34 @@ export class Store {
   private evalComputed(c: ComputedDecl): unknown {
     const source = this.values.get(c.from);
 
-    // scalar ops: subtract and percent operate on two numeric state/computed values
+    // scalar ops: operate on two numeric state/computed values (comma-separated from)
     if (c.op === 'subtract') {
       const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
       return (a ?? 0) - (b ?? 0);
+    }
+    if (c.op === 'add') {
+      const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
+      return (a ?? 0) + (b ?? 0);
     }
     if (c.op === 'percent') {
       const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
       if (!b) return 0;
       return Math.round(((a ?? 0) / b) * 100);
+    }
+    if (c.op === 'percent-of') {
+      // a × (b / 100) — e.g. subtotal × tax-rate/100 = tax amount
+      const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
+      return (a ?? 0) * (b ?? 0) / 100;
+    }
+    if (c.op === 'sum-product') {
+      // Σ(field × by) across list — e.g. Σ(price × qty) = subtotal
+      if (!c.field || !c.by || !Array.isArray(source)) return 0;
+      const filtered = c.where
+        ? (source as Record<string, unknown>[]).filter(item => evalWhere(c.where!, item, this))
+        : source as Record<string, unknown>[];
+      return filtered.reduce((acc, item) =>
+        acc + toNumber(item[c.field!]) * toNumber(item[c.by!]), 0
+      );
     }
 
     if (!Array.isArray(source)) return c.op === 'count' ? 0 : 0;
