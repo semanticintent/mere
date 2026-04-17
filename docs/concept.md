@@ -1,7 +1,7 @@
 # Mere — Concept
 
 **Version:** 0.1
-**Status:** Pre-implementation
+**Status:** Active — v0.1 runtime, CLI, and docs site complete
 
 ---
 
