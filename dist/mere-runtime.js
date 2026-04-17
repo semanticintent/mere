@@ -1889,7 +1889,11 @@ var Mere = (() => {
 
 .mp-data-table-wrap {
   overflow-x: auto;
-  padding: 0 var(--mp-space-lg);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-data-table {
+  width: 100%;
 }
 
 .mp-data-table {
@@ -2505,7 +2509,11 @@ var Mere = (() => {
 
 .mp-data-table-wrap {
   overflow-x: auto;
-  padding: 0 var(--mp-space-lg);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-data-table {
+  width: 100%;
 }
 
 .mp-data-table {
@@ -3132,7 +3140,11 @@ var Mere = (() => {
 
 .mp-data-table-wrap {
   overflow-x: auto;
-  padding: 0 var(--mp-space-lg);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-data-table {
+  width: 100%;
 }
 
 .mp-data-table {
