@@ -59,10 +59,12 @@ export interface ScreenDecl {
 
 export interface WorkbookDecl {
   theme: string;
+  layout: string;
   state: StateDecl[];
   computed: ComputedDecl[];
   actions: ActionDecl[];
   screens: ScreenDecl[];
+  sidebar?: ASTNode;
 }
 
 // ─── Runtime context ──────────────────────────────────────────────────────────

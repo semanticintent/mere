@@ -7,12 +7,15 @@ import type {
 
 export function parseWorkbook(el: Element): WorkbookDecl {
   const theme = el.getAttribute('theme') ?? 'classic-light';
+  const layout = el.getAttribute('layout') ?? 'mobile';
   const state = parseState(el.querySelector(':scope > state'));
   const computed = parseComputed(el.querySelector(':scope > computed'));
   const actions = parseActions(el.querySelector(':scope > actions'));
   const screens = parseScreens(el.querySelectorAll(':scope > screen'));
+  const sidebarEl = el.querySelector(':scope > sidebar');
+  const sidebar = sidebarEl ? parseNode(sidebarEl) : undefined;
 
-  return { theme, state, computed, actions, screens };
+  return { theme, layout, state, computed, actions, screens, sidebar };
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -157,6 +160,8 @@ function parseNode(el: Element): ASTNode {
 const PASSTHROUGH_ATTRS = new Set([
   'placeholder', 'type', 'required', 'min', 'max', 'pattern', 'autocomplete',
   'name', 'id', 'class', 'style',
+  // data-table column definitions
+  'field', 'label', 'as',
 ]);
 
 function parseBindings(el: Element): Binding {

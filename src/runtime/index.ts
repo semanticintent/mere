@@ -2,6 +2,7 @@ import { parseWorkbook } from './parser.js';
 import { Store } from './state.js';
 import { Persist } from './persist.js';
 import { renderNode } from './renderer.js';
+import type { ASTNode } from './types.js';
 import classicLight from '../themes/classic-light.css';
 import protonMail from '../themes/proton-mail.css';
 import brutalist from '../themes/brutalist.css';
@@ -45,7 +46,27 @@ async function bootstrap(workbookEl: Element): Promise<void> {
   // Create workbook host div
   const host = document.createElement('div');
   host.classList.add('mp-workbook');
+  if (decl.layout === 'full') host.dataset['layout'] = 'full';
   workbookEl.replaceWith(host);
+
+  // For full layout: build sidebar + main structure
+  let renderTarget: HTMLElement = host;
+  let sidebarSlot: HTMLElement | null = null;
+
+  if (decl.layout === 'full') {
+    const inner = document.createElement('div');
+    inner.classList.add('mp-layout-inner');
+    host.appendChild(inner);
+
+    sidebarSlot = document.createElement('div');
+    sidebarSlot.classList.add('mp-sidebar-slot');
+    inner.appendChild(sidebarSlot);
+
+    const main = document.createElement('div');
+    main.classList.add('mp-main');
+    inner.appendChild(main);
+    renderTarget = main;
+  }
 
   function goTo(screenName: string): void {
     const screen = screenMap.get(screenName);
@@ -55,8 +76,19 @@ async function bootstrap(workbookEl: Element): Promise<void> {
     }
     if (currentScreenEl) currentScreenEl.remove();
     const el = renderNode(screen.root, store, {}, goTo);
-    host.appendChild(el);
+    renderTarget.appendChild(el);
     currentScreenEl = el;
+
+    // Update active state on sidebar nav items
+    host.querySelectorAll<HTMLElement>('.mp-nav-item[data-target]').forEach(btn => {
+      btn.classList.toggle('mp-nav-item--active', btn.dataset['target'] === screenName);
+    });
+  }
+
+  // Render sidebar after goTo is defined (nav items need goTo wired up)
+  if (decl.layout === 'full' && decl.sidebar && sidebarSlot) {
+    const sidebarEl = renderNode(decl.sidebar as ASTNode, store, {}, goTo);
+    sidebarSlot.appendChild(sidebarEl);
   }
 
   if (decl.screens.length > 0) {

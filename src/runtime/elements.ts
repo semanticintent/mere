@@ -335,6 +335,150 @@ const toggle: RenderFn = (node, store, context, onGoTo) => {
   return label;
 };
 
+// ─── sidebar ──────────────────────────────────────────────────────────────────
+
+const sidebar: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = document.createElement('nav');
+  el.classList.add('mp-sidebar');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── sidebar-brand ────────────────────────────────────────────────────────────
+
+const sidebarBrand: RenderFn = (node, store, context, onGoTo) => {
+  const el = div('sidebar-brand');
+  el.textContent = node.text;
+  return el;
+};
+
+// ─── sidebar-section ──────────────────────────────────────────────────────────
+
+const sidebarSection: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('sidebar-section');
+  const label = node.attrs['label'] ?? node.bindings.literal ?? node.bindings.positional ?? '';
+  if (label) {
+    const labelEl = span('sidebar-label');
+    labelEl.textContent = label;
+    el.appendChild(labelEl);
+  }
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── data-table ───────────────────────────────────────────────────────────────
+
+const dataTable: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('data-table-wrap');
+  const table = document.createElement('table');
+  table.classList.add('mp-data-table');
+
+  const stateName = node.bindings.read ?? '';
+  const cols = node.children.filter(c => c.tag === 'column');
+  const actionBinding = node.bindings.action;
+
+  // thead from column definitions
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  for (const col of cols) {
+    const th = document.createElement('th');
+    th.textContent = col.attrs['label'] ?? col.attrs['field'] ?? '';
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  const render = () => {
+    tbody.innerHTML = '';
+    const items = store.get(stateName, context);
+    if (!Array.isArray(items)) return;
+
+    for (const rawItem of items) {
+      const item = rawItem as Record<string, unknown>;
+      const tr = document.createElement('tr');
+      tr.classList.add('mp-data-table__row');
+
+      if (actionBinding) {
+        tr.style.cursor = 'pointer';
+        const rowContext = { ...context, item };
+        tr.addEventListener('click', () => {
+          const argValues = actionBinding.args.map(a => store.get(a, rowContext));
+          store.invokeAction(actionBinding.name, actionBinding.args, argValues, onGoTo, rowContext);
+        });
+      }
+
+      for (const col of cols) {
+        const td = document.createElement('td');
+        const field = col.attrs['field'] ?? '';
+        const asType = col.attrs['as'] ?? '';
+        const value = String(item[field] ?? '');
+
+        if (asType === 'status-badge') {
+          const badge = document.createElement('span');
+          const slug = value.toLowerCase().replace(/[\s/]+/g, '-');
+          badge.classList.add('mp-status-badge', `mp-status-badge--${slug}`);
+          badge.textContent = value;
+          td.appendChild(badge);
+        } else if (asType === 'name-url') {
+          // name on first line, url muted below
+          const nameEl = document.createElement('div');
+          nameEl.classList.add('mp-cell-name');
+          nameEl.textContent = value;
+          const urlEl = document.createElement('div');
+          urlEl.classList.add('mp-cell-url');
+          urlEl.textContent = String(item['url'] ?? '');
+          td.appendChild(nameEl);
+          td.appendChild(urlEl);
+        } else if (asType === 'contact') {
+          // person name + email
+          const nameEl = document.createElement('div');
+          nameEl.classList.add('mp-cell-name');
+          nameEl.textContent = value;
+          const emailEl = document.createElement('div');
+          emailEl.classList.add('mp-cell-url');
+          emailEl.textContent = String(item[field + '-email'] ?? item['email'] ?? '');
+          td.appendChild(nameEl);
+          td.appendChild(emailEl);
+        } else {
+          td.textContent = value;
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+  };
+
+  render();
+  if (stateName) store.subscribe(stateName, render);
+
+  wrapper.appendChild(table);
+  return wrapper;
+};
+
+// ─── search-bar ───────────────────────────────────────────────────────────────
+
+const searchBar: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('search-bar');
+  const iconEl = document.createElement('span');
+  iconEl.classList.add('mp-search-bar__icon');
+  iconEl.textContent = '⌕';
+  const input = document.createElement('input');
+  input.classList.add('mp-search-bar__input');
+  input.type = 'search';
+  for (const [k, v] of Object.entries(node.attrs)) {
+    input.setAttribute(k, v);
+  }
+  if (node.bindings.twoWay) {
+    bindTwoWay(input, node.bindings.twoWay, store, context);
+  }
+  wrapper.appendChild(iconEl);
+  wrapper.appendChild(input);
+  return wrapper;
+};
+
 // ─── modal / toast / banner ───────────────────────────────────────────────────
 
 const modal: RenderFn = (node, store, context, onGoTo, rc) => {
@@ -387,6 +531,13 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'modal': modal,
   'toast': toast,
   'banner': banner,
+  // Full / dashboard layout
+  'sidebar': sidebar,
+  'sidebar-brand': sidebarBrand,
+  'sidebar-section': sidebarSection,
+  'data-table': dataTable,
+  'column': () => { const el = document.createElement('span'); el.style.display = 'none'; return el; },
+  'search-bar': searchBar,
 };
 
 // ─── Shared render-children without circular import ───────────────────────────
