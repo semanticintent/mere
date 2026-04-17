@@ -223,7 +223,14 @@ function parseBindings(el: Element): Binding {
     if (firstAttr.value) {
       binding.literal = firstAttr.value;
     } else {
-      binding.positional = firstAttr.name;
+      // HTML5 parses <tab "inbox"> with the quotes included in the attr name.
+      // Strip them so <tab "inbox"> and <tab inbox> both yield positional = 'inbox'.
+      let attrName = firstAttr.name;
+      if ((attrName.startsWith('"') && attrName.endsWith('"')) ||
+          (attrName.startsWith("'") && attrName.endsWith("'"))) {
+        attrName = attrName.slice(1, -1);
+      }
+      binding.positional = attrName;
     }
   }
 

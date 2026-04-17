@@ -191,7 +191,11 @@ var Mere = (() => {
       if (firstAttr.value) {
         binding.literal = firstAttr.value;
       } else {
-        binding.positional = firstAttr.name;
+        let attrName = firstAttr.name;
+        if (attrName.startsWith('"') && attrName.endsWith('"') || attrName.startsWith("'") && attrName.endsWith("'")) {
+          attrName = attrName.slice(1, -1);
+        }
+        binding.positional = attrName;
       }
     }
     return binding;
