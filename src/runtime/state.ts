@@ -185,6 +185,7 @@ export class Store {
             }
           }
           if (!item['id']) item['id'] = String(Date.now() + Math.random());
+          if (!item['received-at']) item['received-at'] = new Date().toISOString();
           this.set(stmt.list, [...list, item]);
         }
       }
@@ -308,6 +309,10 @@ function evalWhere(
   const trimmed = rhs.trim();
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
     right = trimmed.slice(1, -1);
+  } else if (trimmed === 'true') {
+    right = true;
+  } else if (trimmed === 'false') {
+    right = false;
   } else {
     right = scope?.[trimmed] ?? store.get(trimmed);
   }
