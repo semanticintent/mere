@@ -225,7 +225,7 @@ export class Store {
 
   private recomputeDepending(name: string): void {
     for (const c of this.computed) {
-      if (c.from === name) {
+      if (c.from === name || whereReferencesState(c.where, name)) {
         const newVal = this.evalComputed(c);
         this.values.set(c.name, newVal);
         this.notify(c.name);
@@ -277,6 +277,17 @@ function setPath(obj: Record<string, unknown>, path: string, value: unknown): vo
   }
   const last = parts[parts.length - 1];
   if (last) cur[last] = value;
+}
+
+// Check if a where clause references a specific state name on the rhs.
+// "folder = current-tab" references 'current-tab', so changing that state
+// must trigger a recompute even though the computed's `from` is different.
+function whereReferencesState(where: string | undefined, name: string): boolean {
+  if (!where) return false;
+  const match = where.match(/^(\S+)\s*=\s*(.+)$/);
+  if (!match) return false;
+  const rhs = match[2]!.trim();
+  return rhs === name && !rhs.startsWith('"') && !rhs.startsWith("'");
 }
 
 // Very simple where clause evaluator: "field = value" or "field = identifier"

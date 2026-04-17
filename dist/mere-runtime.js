@@ -396,7 +396,7 @@ var Mere = (() => {
     }
     recomputeDepending(name) {
       for (const c of this.computed) {
-        if (c.from === name) {
+        if (c.from === name || whereReferencesState(c.where, name)) {
           const newVal = this.evalComputed(c);
           this.values.set(c.name, newVal);
           this.notify(c.name);
@@ -446,6 +446,13 @@ var Mere = (() => {
     }
     const last = parts[parts.length - 1];
     if (last) cur[last] = value;
+  }
+  function whereReferencesState(where, name) {
+    if (!where) return false;
+    const match = where.match(/^(\S+)\s*=\s*(.+)$/);
+    if (!match) return false;
+    const rhs = match[2].trim();
+    return rhs === name && !rhs.startsWith('"') && !rhs.startsWith("'");
   }
   function evalWhere(where, item, store, scope) {
     const match = where.match(/^(\S+)\s*=\s*(.+)$/);
