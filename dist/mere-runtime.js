@@ -64,7 +64,8 @@ var Mere = (() => {
       name: req(v, "name"),
       from: req(v, "from"),
       where: v.getAttribute("where") ?? void 0,
-      op: v.getAttribute("op") ?? void 0
+      op: v.getAttribute("op") ?? void 0,
+      field: v.getAttribute("field") ?? void 0
     }));
   }
   function parseActions(actionsEl) {
@@ -106,6 +107,11 @@ var Mere = (() => {
       if (addToMatch) {
         const fields = parseKeyValuePairs(addToMatch[2].trim());
         stmts.push({ kind: "add-to", list: addToMatch[1], fields });
+        continue;
+      }
+      const removeMatch = line.match(/^remove-from\s+(\S+)\s+where\s+(.+)$/);
+      if (removeMatch) {
+        stmts.push({ kind: "remove-from", list: removeMatch[1], where: removeMatch[2].trim() });
         continue;
       }
     }
@@ -154,7 +160,10 @@ var Mere = (() => {
     // data-table column definitions
     "field",
     "label",
-    "as"
+    "as",
+    // spreadsheet / metric
+    "editable",
+    "format"
   ]);
   function parseBindings(el) {
     const binding = {};
@@ -382,6 +391,14 @@ var Mere = (() => {
             if (!item["received-at"]) item["received-at"] = (/* @__PURE__ */ new Date()).toISOString();
             this.set(stmt.list, [...list, item]);
           }
+        } else if (stmt.kind === "remove-from") {
+          const list = this.values.get(stmt.list);
+          if (Array.isArray(list)) {
+            const updated = list.filter(
+              (item) => !evalWhere(stmt.where, item, this, scope)
+            );
+            this.set(stmt.list, updated);
+          }
         }
       }
     }
@@ -408,21 +425,46 @@ var Mere = (() => {
     }
     recomputeDepending(name) {
       for (const c of this.computed) {
-        if (c.from === name || whereReferencesState(c.where, name)) {
+        const sources = c.from.split(",").map((s) => s.trim());
+        if (sources.includes(name) || whereReferencesState(c.where, name)) {
           const newVal = this.evalComputed(c);
           this.values.set(c.name, newVal);
           this.notify(c.name);
+          this.recomputeDepending(c.name);
         }
       }
     }
     evalComputed(c) {
-      const list = this.values.get(c.from);
-      if (!Array.isArray(list)) return c.op === "count" ? 0 : [];
-      const filtered = c.where ? list.filter((item) => evalWhere(c.where, item, this)) : list;
+      const source = this.values.get(c.from);
+      if (c.op === "subtract") {
+        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
+        return (a ?? 0) - (b ?? 0);
+      }
+      if (c.op === "percent") {
+        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
+        if (!b) return 0;
+        return Math.round((a ?? 0) / b * 100);
+      }
+      if (!Array.isArray(source)) return c.op === "count" ? 0 : 0;
+      const filtered = c.where ? source.filter((item) => evalWhere(c.where, item, this)) : source;
       if (c.op === "count") return filtered.length;
+      if (c.op === "sum") {
+        if (!c.field) return 0;
+        return filtered.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
+      }
+      if (c.op === "avg") {
+        if (!c.field || filtered.length === 0) return 0;
+        const total = filtered.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
+        return Math.round(total / filtered.length);
+      }
       return filtered;
     }
   };
+  function toNumber(v) {
+    if (typeof v === "number") return v;
+    if (typeof v === "string") return parseFloat(v.replace(/[^0-9.\-]/g, "")) || 0;
+    return 0;
+  }
   function defaultFor(type) {
     switch (type) {
       case "text":
@@ -926,6 +968,114 @@ var Mere = (() => {
     wrapper.appendChild(input);
     return wrapper;
   };
+  var spreadsheet = (node, store, context, onGoTo) => {
+    const wrapper = div("spreadsheet-wrap");
+    const table = document.createElement("table");
+    table.classList.add("mp-spreadsheet");
+    const stateName = node.bindings.read ?? "";
+    const cols = node.children.filter((c) => c.tag === "column");
+    const thead = document.createElement("thead");
+    const headerRow = document.createElement("tr");
+    for (const col of cols) {
+      const th = document.createElement("th");
+      th.textContent = col.attrs["label"] ?? col.attrs["field"] ?? "";
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    const tbody = document.createElement("tbody");
+    table.appendChild(tbody);
+    const render = () => {
+      tbody.innerHTML = "";
+      const items = store.get(stateName, context);
+      if (!Array.isArray(items)) return;
+      items.forEach((item, idx) => {
+        const tr = document.createElement("tr");
+        tr.classList.add("mp-spreadsheet__row");
+        for (const col of cols) {
+          const td = document.createElement("td");
+          const fieldName = col.attrs["field"] ?? "";
+          const format = col.attrs["format"] ?? "";
+          const raw = item[fieldName];
+          if ("editable" in col.attrs) {
+            const input = document.createElement("input");
+            input.classList.add("mp-spreadsheet__input");
+            input.value = String(raw ?? "");
+            input.addEventListener("change", () => {
+              const list = store.get(stateName, context);
+              if (!Array.isArray(list)) return;
+              const newVal = format === "currency" || format === "number" ? parseFloat(input.value) || 0 : input.value;
+              store.set(stateName, list.map(
+                (it, i) => i === idx ? { ...it, [fieldName]: newVal } : it
+              ));
+            });
+            td.appendChild(input);
+          } else {
+            td.textContent = format === "currency" ? formatCurrency(Number(raw) || 0) : String(raw ?? "");
+          }
+          tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      });
+    };
+    render();
+    if (stateName) store.subscribe(stateName, render);
+    wrapper.appendChild(table);
+    return wrapper;
+  };
+  var metric = (node, store, context, onGoTo) => {
+    const el = div("metric");
+    const format = node.attrs["format"] ?? "";
+    const valueEl = document.createElement("div");
+    valueEl.classList.add("mp-metric__value");
+    const labelEl = document.createElement("div");
+    labelEl.classList.add("mp-metric__label");
+    labelEl.textContent = node.text;
+    const update = (v) => {
+      const num = parseFloat(v) || 0;
+      if (format === "currency") valueEl.textContent = formatCurrency(num);
+      else if (format === "percent") valueEl.textContent = `${num}%`;
+      else valueEl.textContent = v;
+    };
+    if (node.bindings.read) {
+      bindRead(valueEl, node.bindings.read, store, context, update);
+    } else {
+      update(node.text);
+    }
+    el.appendChild(valueEl);
+    el.appendChild(labelEl);
+    return el;
+  };
+  var metricGroup = (node, store, context, onGoTo, rc) => {
+    const el = div("metric-group");
+    rc(el, node, store, context, onGoTo);
+    return el;
+  };
+  var bar = (node, store, context, onGoTo) => {
+    const wrapper = div("bar");
+    const label = node.attrs["label"] ?? node.text;
+    const headerEl = div("bar__header");
+    const labelEl = document.createElement("span");
+    labelEl.classList.add("mp-bar__label");
+    labelEl.textContent = label;
+    const valueEl = document.createElement("span");
+    valueEl.classList.add("mp-bar__value");
+    headerEl.appendChild(labelEl);
+    headerEl.appendChild(valueEl);
+    const track = div("bar__track");
+    const fill = div("bar__fill");
+    track.appendChild(fill);
+    if (node.bindings.read) {
+      bindRead(wrapper, node.bindings.read, store, context, (v) => {
+        const pct = Math.min(100, Math.max(0, parseFloat(v) || 0));
+        fill.style.width = `${pct}%`;
+        valueEl.textContent = `${pct}%`;
+      });
+    }
+    wrapper.appendChild(headerEl);
+    wrapper.appendChild(track);
+    return wrapper;
+  };
   var modal = (node, store, context, onGoTo, rc) => {
     const el = div("modal");
     el.setAttribute("role", "dialog");
@@ -982,7 +1132,12 @@ var Mere = (() => {
       el.style.display = "none";
       return el;
     },
-    "search-bar": searchBar
+    "search-bar": searchBar,
+    // Spreadsheet + metrics
+    "spreadsheet": spreadsheet,
+    "metric": metric,
+    "metric-group": metricGroup,
+    "bar": bar
   };
   function renderChildren2(node, store, context, onGoTo) {
     const handler = ELEMENTS[node.tag];
@@ -1012,6 +1167,9 @@ var Mere = (() => {
     const days = Math.floor(hours / 24);
     if (days < 7) return `${days}d ago`;
     return d.toLocaleDateString();
+  }
+  function formatCurrency(n) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
   }
   function iconGlyph(name) {
     const glyphs = {
@@ -1788,6 +1946,140 @@ var Mere = (() => {
   padding: 6px 14px;
   font-size: var(--mp-text-sm);
 }
+
+/* \u2500\u2500 Spreadsheet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-spreadsheet-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+}
+
+.mp-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-text-sm);
+}
+
+.mp-spreadsheet thead th {
+  background: var(--mp-bg-secondary);
+  color: var(--mp-text-secondary);
+  font-weight: 500;
+  font-size: var(--mp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mp-spreadsheet__row {
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-spreadsheet__row:last-child { border-bottom: none; }
+
+.mp-spreadsheet__row td {
+  padding: 6px 12px;
+  color: var(--mp-text);
+  vertical-align: middle;
+}
+
+.mp-spreadsheet__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text);
+  padding: 2px 0;
+  min-width: 80px;
+}
+
+.mp-spreadsheet__input:focus {
+  background: var(--mp-accent-subtle);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* \u2500\u2500 Metric \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-metric {
+  background: var(--mp-bg-secondary);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mp-metric__value {
+  font-size: var(--mp-text-2xl);
+  font-weight: 600;
+  color: var(--mp-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.mp-metric__label {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+/* \u2500\u2500 Bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mp-space-sm) 0;
+}
+
+.mp-bar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mp-bar__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-bar__value {
+  font-size: var(--mp-text-xs);
+  font-weight: 600;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+}
+
+.mp-bar__track {
+  height: 8px;
+  background: var(--mp-bg-active);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.mp-bar__fill {
+  height: 100%;
+  background: var(--mp-accent);
+  border-radius: 100px;
+  transition: width 0.4s ease;
+}
 `;
 
   // src/themes/proton-mail.css
@@ -2244,6 +2536,140 @@ var Mere = (() => {
   min-height: 32px;
   padding: 6px 14px;
   font-size: var(--mp-text-sm);
+}
+
+/* \u2500\u2500 Spreadsheet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-spreadsheet-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+}
+
+.mp-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-text-sm);
+}
+
+.mp-spreadsheet thead th {
+  background: var(--mp-bg-secondary);
+  color: var(--mp-text-secondary);
+  font-weight: 500;
+  font-size: var(--mp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mp-spreadsheet__row {
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-spreadsheet__row:last-child { border-bottom: none; }
+
+.mp-spreadsheet__row td {
+  padding: 6px 12px;
+  color: var(--mp-text);
+  vertical-align: middle;
+}
+
+.mp-spreadsheet__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text);
+  padding: 2px 0;
+  min-width: 80px;
+}
+
+.mp-spreadsheet__input:focus {
+  background: var(--mp-accent-subtle);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* \u2500\u2500 Metric \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-metric {
+  background: var(--mp-bg-secondary);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mp-metric__value {
+  font-size: var(--mp-text-2xl);
+  font-weight: 600;
+  color: var(--mp-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.mp-metric__label {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+/* \u2500\u2500 Bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mp-space-sm) 0;
+}
+
+.mp-bar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mp-bar__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-bar__value {
+  font-size: var(--mp-text-xs);
+  font-weight: 600;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+}
+
+.mp-bar__track {
+  height: 8px;
+  background: var(--mp-bg-active);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.mp-bar__fill {
+  height: 100%;
+  background: var(--mp-accent);
+  border-radius: 100px;
+  transition: width 0.4s ease;
 }
 `;
 
@@ -2712,6 +3138,140 @@ var Mere = (() => {
   min-height: 32px;
   padding: 6px 14px;
   font-size: var(--mp-text-sm);
+}
+
+/* \u2500\u2500 Spreadsheet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-spreadsheet-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+}
+
+.mp-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-text-sm);
+}
+
+.mp-spreadsheet thead th {
+  background: var(--mp-bg-secondary);
+  color: var(--mp-text-secondary);
+  font-weight: 500;
+  font-size: var(--mp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mp-spreadsheet__row {
+  border-bottom: 1px solid var(--mp-border);
+}
+
+.mp-spreadsheet__row:last-child { border-bottom: none; }
+
+.mp-spreadsheet__row td {
+  padding: 6px 12px;
+  color: var(--mp-text);
+  vertical-align: middle;
+}
+
+.mp-spreadsheet__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text);
+  padding: 2px 0;
+  min-width: 80px;
+}
+
+.mp-spreadsheet__input:focus {
+  background: var(--mp-accent-subtle);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* \u2500\u2500 Metric \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-metric {
+  background: var(--mp-bg-secondary);
+  border: 1px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mp-metric__value {
+  font-size: var(--mp-text-2xl);
+  font-weight: 600;
+  color: var(--mp-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.mp-metric__label {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+/* \u2500\u2500 Bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mp-space-sm) 0;
+}
+
+.mp-bar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mp-bar__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-bar__value {
+  font-size: var(--mp-text-xs);
+  font-weight: 600;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+}
+
+.mp-bar__track {
+  height: 8px;
+  background: var(--mp-bg-active);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.mp-bar__fill {
+  height: 100%;
+  background: var(--mp-accent);
+  border-radius: 100px;
+  transition: width 0.4s ease;
 }
 `;
 

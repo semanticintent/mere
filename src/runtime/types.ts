@@ -11,9 +11,10 @@ export interface StateDecl {
 
 export interface ComputedDecl {
   name: string;
-  from: string;         // source state name
-  where?: string;       // filter expression, e.g. "folder = current-tab"
-  op?: 'count' | 'sum'; // aggregation
+  from: string;          // source state name or another computed name
+  where?: string;        // filter expression, e.g. "folder = current-tab"
+  op?: 'count' | 'sum' | 'avg' | 'subtract' | 'percent';
+  field?: string;        // numeric field to aggregate (for sum/avg)
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -22,7 +23,8 @@ export type ActionStatement =
   | { kind: 'set'; target: string; value: string; where?: string }
   | { kind: 'go-to'; screen: string }
   | { kind: 'clear'; target: string }
-  | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> };
+  | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> }
+  | { kind: 'remove-from'; list: string; where: string };
 
 export interface ActionDecl {
   name: string;

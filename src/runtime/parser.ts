@@ -49,6 +49,7 @@ function parseComputed(computedEl: Element | null): ComputedDecl[] {
     from: req(v, 'from'),
     where: v.getAttribute('where') ?? undefined,
     op: (v.getAttribute('op') ?? undefined) as ComputedDecl['op'],
+    field: v.getAttribute('field') ?? undefined,
   }));
 }
 
@@ -103,6 +104,13 @@ function parseActionBody(body: string): ActionStatement[] {
     if (addToMatch) {
       const fields = parseKeyValuePairs(addToMatch[2]!.trim());
       stmts.push({ kind: 'add-to', list: addToMatch[1]!, fields });
+      continue;
+    }
+
+    // remove-from <list> where <condition>
+    const removeMatch = line.match(/^remove-from\s+(\S+)\s+where\s+(.+)$/);
+    if (removeMatch) {
+      stmts.push({ kind: 'remove-from', list: removeMatch[1]!, where: removeMatch[2]!.trim() });
       continue;
     }
   }
@@ -162,6 +170,8 @@ const PASSTHROUGH_ATTRS = new Set([
   'name', 'id', 'class', 'style',
   // data-table column definitions
   'field', 'label', 'as',
+  // spreadsheet / metric
+  'editable', 'format',
 ]);
 
 function parseBindings(el: Element): Binding {

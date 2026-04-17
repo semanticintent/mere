@@ -479,6 +479,147 @@ const searchBar: RenderFn = (node, store, context, onGoTo) => {
   return wrapper;
 };
 
+// ─── spreadsheet ─────────────────────────────────────────────────────────────
+
+const spreadsheet: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('spreadsheet-wrap');
+  const table = document.createElement('table');
+  table.classList.add('mp-spreadsheet');
+
+  const stateName = node.bindings.read ?? '';
+  const cols = node.children.filter(c => c.tag === 'column');
+
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  for (const col of cols) {
+    const th = document.createElement('th');
+    th.textContent = col.attrs['label'] ?? col.attrs['field'] ?? '';
+    headerRow.appendChild(th);
+  }
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+
+  const render = () => {
+    tbody.innerHTML = '';
+    const items = store.get(stateName, context);
+    if (!Array.isArray(items)) return;
+
+    (items as Record<string, unknown>[]).forEach((item, idx) => {
+      const tr = document.createElement('tr');
+      tr.classList.add('mp-spreadsheet__row');
+
+      for (const col of cols) {
+        const td = document.createElement('td');
+        const fieldName = col.attrs['field'] ?? '';
+        const format = col.attrs['format'] ?? '';
+        const raw = item[fieldName];
+
+        if ('editable' in col.attrs) {
+          const input = document.createElement('input');
+          input.classList.add('mp-spreadsheet__input');
+          input.value = String(raw ?? '');
+          input.addEventListener('change', () => {
+            const list = store.get(stateName, context);
+            if (!Array.isArray(list)) return;
+            const newVal = format === 'currency' || format === 'number'
+              ? parseFloat(input.value) || 0
+              : input.value;
+            store.set(stateName, (list as Record<string, unknown>[]).map(
+              (it, i) => i === idx ? { ...it, [fieldName]: newVal } : it
+            ));
+          });
+          td.appendChild(input);
+        } else {
+          td.textContent = format === 'currency'
+            ? formatCurrency(Number(raw) || 0)
+            : String(raw ?? '');
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    });
+  };
+
+  render();
+  if (stateName) store.subscribe(stateName, render);
+  wrapper.appendChild(table);
+  return wrapper;
+};
+
+// ─── metric ───────────────────────────────────────────────────────────────────
+
+const metric: RenderFn = (node, store, context, onGoTo) => {
+  const el = div('metric');
+  const format = node.attrs['format'] ?? '';
+
+  const valueEl = document.createElement('div');
+  valueEl.classList.add('mp-metric__value');
+
+  const labelEl = document.createElement('div');
+  labelEl.classList.add('mp-metric__label');
+  labelEl.textContent = node.text;
+
+  const update = (v: string) => {
+    const num = parseFloat(v) || 0;
+    if (format === 'currency') valueEl.textContent = formatCurrency(num);
+    else if (format === 'percent') valueEl.textContent = `${num}%`;
+    else valueEl.textContent = v;
+  };
+
+  if (node.bindings.read) {
+    bindRead(valueEl, node.bindings.read, store, context, update);
+  } else {
+    update(node.text);
+  }
+
+  el.appendChild(valueEl);
+  el.appendChild(labelEl);
+  return el;
+};
+
+// ─── metric-group ─────────────────────────────────────────────────────────────
+
+const metricGroup: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('metric-group');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
+// ─── bar ──────────────────────────────────────────────────────────────────────
+
+const bar: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('bar');
+  const label = node.attrs['label'] ?? node.text;
+
+  const headerEl = div('bar__header');
+  const labelEl = document.createElement('span');
+  labelEl.classList.add('mp-bar__label');
+  labelEl.textContent = label;
+  const valueEl = document.createElement('span');
+  valueEl.classList.add('mp-bar__value');
+  headerEl.appendChild(labelEl);
+  headerEl.appendChild(valueEl);
+
+  const track = div('bar__track');
+  const fill = div('bar__fill');
+  track.appendChild(fill);
+
+  if (node.bindings.read) {
+    bindRead(wrapper, node.bindings.read, store, context, v => {
+      const pct = Math.min(100, Math.max(0, parseFloat(v) || 0));
+      fill.style.width = `${pct}%`;
+      valueEl.textContent = `${pct}%`;
+    });
+  }
+
+  wrapper.appendChild(headerEl);
+  wrapper.appendChild(track);
+  return wrapper;
+};
+
 // ─── modal / toast / banner ───────────────────────────────────────────────────
 
 const modal: RenderFn = (node, store, context, onGoTo, rc) => {
@@ -538,6 +679,11 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'data-table': dataTable,
   'column': () => { const el = document.createElement('span'); el.style.display = 'none'; return el; },
   'search-bar': searchBar,
+  // Spreadsheet + metrics
+  'spreadsheet': spreadsheet,
+  'metric': metric,
+  'metric-group': metricGroup,
+  'bar': bar,
 };
 
 // ─── Shared render-children without circular import ───────────────────────────
@@ -587,6 +733,10 @@ function formatRelative(d: Date): string {
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
   return d.toLocaleDateString();
+}
+
+function formatCurrency(n: number): string {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(n);
 }
 
 function iconGlyph(name: string): string {

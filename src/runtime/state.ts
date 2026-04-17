@@ -192,6 +192,15 @@ export class Store {
           if (!item['received-at']) item['received-at'] = new Date().toISOString();
           this.set(stmt.list, [...list, item]);
         }
+
+      } else if (stmt.kind === 'remove-from') {
+        const list = this.values.get(stmt.list);
+        if (Array.isArray(list)) {
+          const updated = (list as Record<string, unknown>[]).filter(
+            item => !evalWhere(stmt.where, item, this, scope)
+          );
+          this.set(stmt.list, updated);
+        }
       }
     }
   }
@@ -230,26 +239,61 @@ export class Store {
 
   private recomputeDepending(name: string): void {
     for (const c of this.computed) {
-      if (c.from === name || whereReferencesState(c.where, name)) {
+      // from can be comma-separated for scalar ops like subtract/percent
+      const sources = c.from.split(',').map(s => s.trim());
+      if (sources.includes(name) || whereReferencesState(c.where, name)) {
         const newVal = this.evalComputed(c);
         this.values.set(c.name, newVal);
         this.notify(c.name);
+        // cascade: another computed might depend on this computed
+        this.recomputeDepending(c.name);
       }
     }
   }
 
   private evalComputed(c: ComputedDecl): unknown {
-    const list = this.values.get(c.from);
-    if (!Array.isArray(list)) return c.op === 'count' ? 0 : [];
+    const source = this.values.get(c.from);
+
+    // scalar ops: subtract and percent operate on two numeric state/computed values
+    if (c.op === 'subtract') {
+      const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
+      return (a ?? 0) - (b ?? 0);
+    }
+    if (c.op === 'percent') {
+      const [a, b] = c.from.split(',').map(n => toNumber(this.values.get(n.trim())));
+      if (!b) return 0;
+      return Math.round(((a ?? 0) / b) * 100);
+    }
+
+    if (!Array.isArray(source)) return c.op === 'count' ? 0 : 0;
     const filtered = c.where
-      ? list.filter(item => evalWhere(c.where!, item as Record<string, unknown>, this))
-      : list;
+      ? source.filter(item => evalWhere(c.where!, item as Record<string, unknown>, this))
+      : source;
+
     if (c.op === 'count') return filtered.length;
+
+    if (c.op === 'sum') {
+      if (!c.field) return 0;
+      return filtered.reduce((acc, item) => acc + toNumber((item as Record<string, unknown>)[c.field!]), 0);
+    }
+
+    if (c.op === 'avg') {
+      if (!c.field || filtered.length === 0) return 0;
+      const total = filtered.reduce((acc, item) => acc + toNumber((item as Record<string, unknown>)[c.field!]), 0);
+      return Math.round(total / filtered.length);
+    }
+
     return filtered;
   }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function toNumber(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return parseFloat(v.replace(/[^0-9.\-]/g, '')) || 0;
+  return 0;
+}
 
 function defaultFor(type: string): unknown {
   switch (type) {
