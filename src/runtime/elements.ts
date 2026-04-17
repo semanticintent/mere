@@ -167,7 +167,7 @@ const tabBar: RenderFn = (node, store, context, onGoTo, rc) => {
     tabEl.classList.add('mp-tab');
     const tabValue = child.bindings.positional ?? child.bindings.literal ?? '';
     tabEl.dataset['value'] = tabValue;
-    tabEl.textContent = child.text;
+    bindText(tabEl, child.text, store, context);
 
     // Active state
     const setActive = () => {

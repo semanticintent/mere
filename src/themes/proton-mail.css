@@ -444,3 +444,11 @@
   padding: var(--mp-space-md) var(--mp-space-lg);
   flex-wrap: wrap;
 }
+
+/* Header buttons are auto-width and compact */
+.mp-header .mp-button {
+  width: auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: var(--mp-text-sm);
+}

@@ -683,7 +683,7 @@ var Mere = (() => {
       tabEl.classList.add("mp-tab");
       const tabValue = child.bindings.positional ?? child.bindings.literal ?? "";
       tabEl.dataset["value"] = tabValue;
-      tabEl.textContent = child.text;
+      bindText(tabEl, child.text, store, context);
       const setActive = () => {
         const current = String(store.get(stateName, context));
         tabEl.classList.toggle("mp-tab--active", current === tabValue);
@@ -1780,6 +1780,14 @@ var Mere = (() => {
   padding: var(--mp-space-md) var(--mp-space-lg);
   flex-wrap: wrap;
 }
+
+/* Header buttons are auto-width and compact */
+.mp-header .mp-button {
+  width: auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: var(--mp-text-sm);
+}
 `;
 
   // src/themes/proton-mail.css
@@ -2228,6 +2236,14 @@ var Mere = (() => {
   gap: var(--mp-space-md);
   padding: var(--mp-space-md) var(--mp-space-lg);
   flex-wrap: wrap;
+}
+
+/* Header buttons are auto-width and compact */
+.mp-header .mp-button {
+  width: auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: var(--mp-text-sm);
 }
 `;
 
@@ -2688,6 +2704,14 @@ var Mere = (() => {
   gap: var(--mp-space-md);
   padding: var(--mp-space-md) var(--mp-space-lg);
   flex-wrap: wrap;
+}
+
+/* Header buttons are auto-width and compact */
+.mp-header .mp-button {
+  width: auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: var(--mp-text-sm);
 }
 `;
 
