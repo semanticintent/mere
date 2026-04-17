@@ -442,6 +442,10 @@ const dataTable: RenderFn = (node, store, context, onGoTo) => {
           emailEl.textContent = String(item[field + '-email'] ?? item['email'] ?? '');
           td.appendChild(nameEl);
           td.appendChild(emailEl);
+        } else if (asType === 'currency') {
+          td.textContent = formatCurrency(Number(item[field]) || 0);
+          td.style.textAlign = 'right';
+          td.style.fontVariantNumeric = 'tabular-nums';
         } else {
           td.textContent = value;
         }

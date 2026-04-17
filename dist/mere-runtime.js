@@ -937,6 +937,10 @@ var Mere = (() => {
             emailEl.textContent = String(item[field2 + "-email"] ?? item["email"] ?? "");
             td.appendChild(nameEl);
             td.appendChild(emailEl);
+          } else if (asType === "currency") {
+            td.textContent = formatCurrency(Number(item[field2]) || 0);
+            td.style.textAlign = "right";
+            td.style.fontVariantNumeric = "tabular-nums";
           } else {
             td.textContent = value;
           }
