@@ -332,22 +332,23 @@ var Mere = (() => {
       for (const stmt of action.statements) {
         if (stmt.kind === "set") {
           const value = scope[stmt.value] ?? this.resolveArg(stmt.value, context);
-          if (stmt.where) {
+          if (stmt.where && stmt.target.includes(".")) {
             this.setWhere(stmt.target, stmt.value, stmt.where, scope, context);
+          } else if (stmt.where) {
+            const src = this.values.get(stmt.value);
+            if (Array.isArray(src)) {
+              const match = src.find(
+                (item) => evalWhere(stmt.where, item, this, scope)
+              );
+              this.set(stmt.target, match ?? {});
+            }
           } else if (stmt.target.includes("=")) {
           } else {
             if (stmt.value.startsWith('"')) {
               this.set(stmt.target, stmt.value.slice(1, -1));
             } else {
               const src = this.values.get(stmt.value);
-              if (Array.isArray(src) && stmt.where) {
-                const match = src.find(
-                  (item) => evalWhere(stmt.where, item, this, scope)
-                );
-                this.set(stmt.target, match ?? {});
-              } else {
-                this.set(stmt.target, src ?? scope[stmt.value] ?? value);
-              }
+              this.set(stmt.target, src ?? scope[stmt.value] ?? value);
             }
           }
         } else if (stmt.kind === "go-to") {

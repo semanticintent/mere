@@ -141,26 +141,26 @@ export class Store {
     for (const stmt of action.statements) {
       if (stmt.kind === 'set') {
         const value = scope[stmt.value] ?? this.resolveArg(stmt.value, context);
-        if (stmt.where) {
-          // set messages.folder to "archive" where id = id
+        if (stmt.where && stmt.target.includes('.')) {
+          // set messages.folder to "archive" where id = id — update field on matching items
           this.setWhere(stmt.target, stmt.value, stmt.where, scope, context);
+        } else if (stmt.where) {
+          // set selected-message to messages where id = id — find matching item
+          const src = this.values.get(stmt.value);
+          if (Array.isArray(src)) {
+            const match = (src as Record<string, unknown>[]).find(item =>
+              evalWhere(stmt.where!, item, this, scope)
+            );
+            this.set(stmt.target, match ?? {});
+          }
         } else if (stmt.target.includes('=')) {
           // not expected in v0.1
         } else {
-          // set selected-message to messages where id = id
           if (stmt.value.startsWith('"')) {
             this.set(stmt.target, stmt.value.slice(1, -1));
           } else {
-            // "set X to Y where ..." — find matching item
             const src = this.values.get(stmt.value);
-            if (Array.isArray(src) && stmt.where) {
-              const match = (src as Record<string, unknown>[]).find(item =>
-                evalWhere(stmt.where!, item, this, scope)
-              );
-              this.set(stmt.target, match ?? {});
-            } else {
-              this.set(stmt.target, src ?? scope[stmt.value] ?? value);
-            }
+            this.set(stmt.target, src ?? scope[stmt.value] ?? value);
           }
         }
       } else if (stmt.kind === 'go-to') {
