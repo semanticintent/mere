@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { checkFile } from './check.js';
 import { printSchema } from './schema.js';
+import { runPackCommand } from './pack.js';
 import { formatDiagnostic, formatSummary } from './diagnostics.js';
 
 // ─── CLI entry point ──────────────────────────────────────────────────────────
@@ -14,9 +15,15 @@ const HELP = `
 
 \x1b[1mUsage:\x1b[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
   mere help               Show this help.
+
+\x1b[1mmere pack options:\x1b[0m
+  --out <path>            Output path (default: <name>.packed.mp.html)
+  --runtime <path>        Path to mere-runtime.js (default: auto-detected)
+  --skip-check            Skip mere check before packing
 
 \x1b[1mDiagnostic codes:\x1b[0m
   MPD-001  structural        Workbook root element missing or invalid
@@ -70,6 +77,11 @@ switch (command) {
 
     if (totalErrors > 0)   process.exit(1);
     if (totalWarnings > 0) process.exit(2);
+    process.exit(0);
+  }
+
+  case 'pack': {
+    runPackCommand(args.slice(1));
     process.exit(0);
   }
 

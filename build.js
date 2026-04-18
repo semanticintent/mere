@@ -87,10 +87,24 @@ if (serve) {
   await ctx.watch();
   console.log('Watching for changes...');
 } else {
-  // Build runtime
+  // Build runtime (unminified — for dev/CDN)
   await ctx.rebuild();
   await ctx.dispose();
   console.log('Built dist/mere-runtime.js');
+
+  // Build minified runtime — for mere pack
+  await esbuild.build({
+    entryPoints: ['src/runtime/index.ts'],
+    bundle: true,
+    format: 'iife',
+    globalName: 'Mere',
+    outfile: 'dist/mere-runtime.min.js',
+    sourcemap: false,
+    minify: true,
+    plugins: [inlineCssPlugin],
+    define: { 'process.env.NODE_ENV': '"production"' },
+  });
+  console.log('Built dist/mere-runtime.min.js');
 
   // Build CLI
   await esbuild.build({
