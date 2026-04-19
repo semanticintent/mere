@@ -479,6 +479,136 @@ function printSchema(asJson) {
   line("");
 }
 
+// src/cli/pack.ts
+import { readFileSync as readFileSync2, writeFileSync, existsSync } from "fs";
+import { resolve, dirname, basename, extname } from "path";
+import { fileURLToPath } from "url";
+var RUNTIME_SCRIPT_RE = /<script\s[^>]*src=["'][^"']*mere-runtime[^"']*["'][^>]*><\/script>/i;
+function loadRuntime(runtimePath) {
+  if (runtimePath) {
+    if (!existsSync(runtimePath)) throw new Error(`Runtime not found: ${runtimePath}`);
+    return readFileSync2(runtimePath, "utf8");
+  }
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+  const minified = resolve(thisDir, "mere-runtime.min.js");
+  if (existsSync(minified)) return readFileSync2(minified, "utf8");
+  const candidate = resolve(thisDir, "mere-runtime.js");
+  if (existsSync(candidate)) return readFileSync2(candidate, "utf8");
+  throw new Error(
+    'Could not locate mere-runtime.js. Run "npm run build" in the mere project first, or pass --runtime <path> to specify it explicitly.'
+  );
+}
+function defaultOutputPath(inputPath) {
+  const dir = dirname(inputPath);
+  const base = basename(inputPath);
+  if (base.endsWith(".mp.html")) {
+    return resolve(dir, base.replace(/\.mp\.html$/, ".packed.mp.html"));
+  }
+  if (base.endsWith(".mp")) {
+    return resolve(dir, base.replace(/\.mp$/, ".packed.mp.html"));
+  }
+  const ext = extname(base);
+  return resolve(dir, base.slice(0, -ext.length) + ".packed" + ext);
+}
+function packFile(inputPath, opts = {}) {
+  const useColor = process.stdout.isTTY;
+  if (!opts.skipCheck) {
+    const diags = checkFile(inputPath);
+    const errors = diags.filter((d) => d.severity === "error");
+    if (errors.length > 0) {
+      const cross = useColor ? "\x1B[31m\u2718\x1B[0m" : "\u2718";
+      console.error(`${cross} ${inputPath} \u2014 failed mere check (${errors.length} error${errors.length > 1 ? "s" : ""}). Fix errors before packing.`);
+      process.exit(1);
+    }
+  }
+  const source = readFileSync2(inputPath, "utf8");
+  const runtime = loadRuntime(opts.runtimePath);
+  const version = extractVersion(runtime);
+  const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const banner = `/* mere-runtime ${version} \u2014 packed ${stamp} */
+`;
+  const inlineTag = `<script>
+${banner}${runtime}
+</script>`;
+  let packed;
+  if (RUNTIME_SCRIPT_RE.test(source)) {
+    packed = source.replace(RUNTIME_SCRIPT_RE, inlineTag);
+  } else {
+    if (source.includes("</head>")) {
+      packed = source.replace("</head>", `${inlineTag}
+</head>`);
+    } else {
+      packed = inlineTag + "\n" + source;
+    }
+  }
+  const outputPath = opts.out ?? defaultOutputPath(inputPath);
+  writeFileSync(outputPath, packed, "utf8");
+  return {
+    outputPath,
+    runtimeBytes: Buffer.byteLength(runtime, "utf8"),
+    totalBytes: Buffer.byteLength(packed, "utf8")
+  };
+}
+function extractVersion(runtime) {
+  const m = runtime.match(/version[:\s=]+["']?(\d+\.\d+\.\d+)["']?/i);
+  return m?.[1] ?? "unknown";
+}
+function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+function runPackCommand(args2) {
+  const useColor = process.stdout.isTTY;
+  const files = [];
+  let outPath;
+  let runtimePath;
+  let skipCheck = false;
+  let i = 0;
+  while (i < args2.length) {
+    const arg = args2[i];
+    if (arg === "--out" || arg === "-o") {
+      outPath = args2[++i];
+    } else if (arg === "--runtime") {
+      runtimePath = args2[++i];
+    } else if (arg === "--skip-check") {
+      skipCheck = true;
+    } else if (!arg.startsWith("--")) {
+      files.push(arg);
+    }
+    i++;
+  }
+  if (files.length === 0) {
+    console.error("Usage: mere pack <file.mp.html> [--out <path>] [--runtime <path>]");
+    process.exit(1);
+  }
+  for (const file of files) {
+    const resolved = resolve(file);
+    if (!existsSync(resolved)) {
+      console.error(`File not found: ${file}`);
+      process.exit(1);
+    }
+    try {
+      const tick = useColor ? "\x1B[32m\u2713\x1B[0m" : "\u2713";
+      const arrow = useColor ? "\x1B[2m\u2192\x1B[0m" : "\u2192";
+      const dim = (s) => useColor ? `\x1B[2m${s}\x1B[0m` : s;
+      const result = packFile(resolved, {
+        out: outPath && files.length === 1 ? resolve(outPath) : void 0,
+        runtimePath,
+        skipCheck
+      });
+      console.log(
+        `${tick} ${file} ${arrow} ${result.outputPath}
+   ${dim(`runtime: ${formatBytes(result.runtimeBytes)}  \xB7  total: ${formatBytes(result.totalBytes)}  \xB7  self-contained`)}`
+      );
+    } catch (err) {
+      const cross = useColor ? "\x1B[31m\u2718\x1B[0m" : "\u2718";
+      console.error(`${cross} ${file} \u2014 ${err instanceof Error ? err.message : String(err)}`);
+      process.exit(1);
+    }
+  }
+}
+
 // src/cli/index.ts
 var args = process.argv.slice(2);
 var command = args[0];
@@ -488,9 +618,15 @@ var HELP = `
 
 \x1B[1mUsage:\x1B[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
   mere help               Show this help.
+
+\x1B[1mmere pack options:\x1B[0m
+  --out <path>            Output path (default: <name>.packed.mp.html)
+  --runtime <path>        Path to mere-runtime.js (default: auto-detected)
+  --skip-check            Skip mere check before packing
 
 \x1B[1mDiagnostic codes:\x1B[0m
   MPD-001  structural        Workbook root element missing or invalid
@@ -538,6 +674,10 @@ switch (command) {
     }
     if (totalErrors > 0) process.exit(1);
     if (totalWarnings > 0) process.exit(2);
+    process.exit(0);
+  }
+  case "pack": {
+    runPackCommand(args.slice(1));
     process.exit(0);
   }
   case "schema": {
