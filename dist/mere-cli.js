@@ -609,6 +609,94 @@ function runPackCommand(args2) {
   }
 }
 
+// src/cli/inspect.ts
+import { readFileSync as readFileSync3 } from "fs";
+import { parse as parse2 } from "node-html-parser";
+function inspectFile(filePath) {
+  const base = {
+    file: filePath,
+    valid: false,
+    name: null,
+    theme: null,
+    layout: "mobile",
+    screens: 0,
+    screenNames: [],
+    stateVars: 0,
+    computed: 0,
+    actions: 0,
+    elements: [],
+    hasPersist: false,
+    hasExternalFetch: false
+  };
+  let source;
+  try {
+    source = readFileSync3(filePath, "utf8");
+  } catch {
+    return base;
+  }
+  const root = parse2(source, { comment: false });
+  const workbook = root.querySelector("workbook");
+  if (!workbook) return base;
+  base.valid = true;
+  base.name = workbook.getAttribute("name") ?? null;
+  base.theme = workbook.getAttribute("theme") ?? null;
+  base.layout = workbook.getAttribute("layout") === "full" ? "full" : "mobile";
+  const screens = workbook.querySelectorAll("screen");
+  base.screens = screens.length;
+  base.screenNames = screens.map((s) => s.getAttribute("name") ?? "").filter(Boolean);
+  base.stateVars = workbook.querySelectorAll("state > value").length;
+  base.hasPersist = workbook.querySelectorAll("state > value[persist]").length > 0;
+  base.computed = workbook.querySelectorAll("computed > value").length;
+  base.actions = workbook.querySelectorAll("actions > action").length;
+  const structural = /* @__PURE__ */ new Set(["workbook", "screen", "state", "computed", "actions", "action", "value"]);
+  const seen = /* @__PURE__ */ new Set();
+  workbook.querySelectorAll("*").forEach((el) => {
+    const tag = el.tagName?.toLowerCase();
+    if (tag && !structural.has(tag) && REGISTRY_MAP.has(tag)) seen.add(tag);
+  });
+  base.elements = [...seen].sort();
+  const scripts = root.querySelectorAll("script");
+  base.hasExternalFetch = scripts.some((s) => {
+    const src = s.getAttribute("src") ?? "";
+    if (src.includes("mere-runtime")) return false;
+    const text = s.text ?? "";
+    return /fetch\s*\(|XMLHttpRequest|axios/.test(text);
+  });
+  return base;
+}
+function runInspectCommand(args2) {
+  const asJson = args2.includes("--json");
+  const files = args2.filter((a) => !a.startsWith("--"));
+  if (files.length === 0) {
+    console.error("Usage: mere inspect <file.mp> [--json]");
+    process.exit(1);
+  }
+  const reports = files.map(inspectFile);
+  if (asJson) {
+    console.log(JSON.stringify(files.length === 1 ? reports[0] : reports, null, 2));
+    return;
+  }
+  for (const r of reports) {
+    const col = (s) => `\x1B[2m${s}\x1B[0m`;
+    console.log(`
+\x1B[1m${r.file}\x1B[0m`);
+    if (!r.valid) {
+      console.log("  \u2717 No <workbook> root \u2014 cannot inspect");
+      continue;
+    }
+    console.log(`  name      ${r.name ?? col("(none)")}`);
+    console.log(`  theme     ${r.theme ?? col("(none)")}`);
+    console.log(`  layout    ${r.layout}`);
+    console.log(`  screens   ${r.screens}${r.screenNames.length ? "  " + col(r.screenNames.join(", ")) : ""}`);
+    console.log(`  state     ${r.stateVars}${r.hasPersist ? "  " + col("(persisted)") : ""}`);
+    console.log(`  computed  ${r.computed}`);
+    console.log(`  actions   ${r.actions}`);
+    console.log(`  elements  ${r.elements.length ? r.elements.join(", ") : col("(none)")}`);
+    if (r.hasExternalFetch) console.log(`  \x1B[33m\u26A0 external fetch detected\x1B[0m`);
+    console.log("");
+  }
+}
+
 // src/cli/index.ts
 var args = process.argv.slice(2);
 var command = args[0];
@@ -618,6 +706,7 @@ var HELP = `
 
 \x1B[1mUsage:\x1B[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere inspect <file.mp>  Report screens, state, elements, theme, layout \u2014 the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
@@ -674,6 +763,10 @@ switch (command) {
     }
     if (totalErrors > 0) process.exit(1);
     if (totalWarnings > 0) process.exit(2);
+    process.exit(0);
+  }
+  case "inspect": {
+    runInspectCommand(args.slice(1));
     process.exit(0);
   }
   case "pack": {

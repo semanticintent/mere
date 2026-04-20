@@ -2,6 +2,7 @@
 import { checkFile } from './check.js';
 import { printSchema } from './schema.js';
 import { runPackCommand } from './pack.js';
+import { runInspectCommand } from './inspect.js';
 import { formatDiagnostic, formatSummary } from './diagnostics.js';
 
 // ─── CLI entry point ──────────────────────────────────────────────────────────
@@ -15,6 +16,7 @@ const HELP = `
 
 \x1b[1mUsage:\x1b[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere inspect <file.mp>  Report screens, state, elements, theme, layout — the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
@@ -77,6 +79,11 @@ switch (command) {
 
     if (totalErrors > 0)   process.exit(1);
     if (totalWarnings > 0) process.exit(2);
+    process.exit(0);
+  }
+
+  case 'inspect': {
+    runInspectCommand(args.slice(1));
     process.exit(0);
   }
 
