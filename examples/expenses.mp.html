@@ -12,7 +12,7 @@
 
   <state>
     <value name="expenses" type="record-list"
-      default='[{"description":"Groceries","amount":85,"category":"food"},{"description":"Train tickets","amount":42,"category":"travel"},{"description":"Lunch","amount":18,"category":"food"},{"description":"Hotel","amount":210,"category":"travel"},{"description":"Coffee","amount":6,"category":"food"}]'>
+      default='[{"id":"e1","description":"Groceries","amount":85,"category":"food"},{"id":"e2","description":"Train tickets","amount":42,"category":"travel"},{"id":"e3","description":"Lunch","amount":18,"category":"food"},{"id":"e4","description":"Hotel","amount":210,"category":"travel"},{"id":"e5","description":"Coffee","amount":6,"category":"food"}]'>
       <field name="description" type="text" />
       <field name="amount"      type="number" default="0" />
       <field name="category"    type="text"   default="general" />
@@ -67,7 +67,8 @@
     <list @expenses>
       <card>
         <heading @item.description />
-        <paragraph>@item.amount · @item.category</paragraph>
+        <badge @item.category />
+        <kv label="Amount" @item.amount />
         <button !remove-expense with item.id>Remove</button>
       </card>
     </list>
