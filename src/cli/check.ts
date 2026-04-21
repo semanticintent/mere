@@ -87,6 +87,35 @@ export function checkFile(filePath: string): Diagnostic[] {
 
   const allStateIds = new Set([...stateNames, ...computedNames]);
 
+  // ── MPD-013: computed op missing required attribute ───────────────────────
+
+  const FIELD_REQUIRED = new Set(['sum', 'avg', 'min', 'max', 'streak', 'sum-product', 'group-by']);
+  const BY_REQUIRED    = new Set(['group-by', 'sum-product']);
+
+  workbook.querySelectorAll('computed > value').forEach(v => {
+    const name  = v.getAttribute('name') ?? '?';
+    const op    = v.getAttribute('op');
+    if (!op) return;
+    const field = v.getAttribute('field');
+    const by    = v.getAttribute('by');
+    const loc   = nodeLocation(source, v);
+
+    if (FIELD_REQUIRED.has(op) && !field) {
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_013,
+        `Computed "${name}" with op="${op}" requires a field= attribute.`,
+        filePath, loc, op.length,
+      ));
+    }
+    if (BY_REQUIRED.has(op) && !by) {
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_013,
+        `Computed "${name}" with op="${op}" requires a by= attribute.`,
+        filePath, loc, op.length,
+      ));
+    }
+  });
+
   // ── MPD-008: circular computed dependency ─────────────────────────────────
 
   const computedDeps = new Map<string, string>();

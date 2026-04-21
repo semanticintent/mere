@@ -82,7 +82,8 @@ var Mere = (() => {
       where: v.getAttribute("where") ?? void 0,
       op: v.getAttribute("op") ?? void 0,
       field: v.getAttribute("field") ?? void 0,
-      by: v.getAttribute("by") ?? void 0
+      by: v.getAttribute("by") ?? void 0,
+      window: v.getAttribute("window") ? Number(v.getAttribute("window")) : void 0
     }));
   }
   function parseActions(actionsEl) {
@@ -532,8 +533,37 @@ var Mere = (() => {
       }
       if (c.op === "avg") {
         if (!c.field || filtered.length === 0) return 0;
-        const total = filtered.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
-        return Math.round(total / filtered.length);
+        const windowed = c.window ? filtered.slice(-c.window) : filtered;
+        const total = windowed.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
+        return Math.round(total / windowed.length);
+      }
+      if (c.op === "min" || c.op === "max") {
+        if (!c.field || filtered.length === 0) return 0;
+        const windowed = c.window ? filtered.slice(-c.window) : filtered;
+        const vals = windowed.map((item) => toNumber(item[c.field]));
+        return c.op === "min" ? Math.min(...vals) : Math.max(...vals);
+      }
+      if (c.op === "group-by") {
+        if (!c.field || !c.by || !Array.isArray(source)) return [];
+        const groups = /* @__PURE__ */ new Map();
+        for (const item of filtered) {
+          const key = String(item[c.by] ?? "");
+          const val = toNumber(item[c.field]);
+          groups.set(key, (groups.get(key) ?? 0) + val);
+        }
+        return [...groups.entries()].map(([key, value]) => ({ key, value })).sort((a, b) => b.value - a.value);
+      }
+      if (c.op === "streak") {
+        if (!Array.isArray(source)) return 0;
+        const sorted = [...source];
+        if (c.by) sorted.sort((a, b) => String(b[c.by]).localeCompare(String(a[c.by])));
+        let count = 0;
+        for (const item of sorted) {
+          const passes = c.where ? evalWhere(c.where, item, this) : Boolean(item[c.field ?? ""]);
+          if (passes) count++;
+          else break;
+        }
+        return count;
       }
       return filtered;
     }

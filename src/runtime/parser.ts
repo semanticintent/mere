@@ -68,6 +68,7 @@ function parseComputed(computedEl: Element | null): ComputedDecl[] {
     op: (v.getAttribute('op') ?? undefined) as ComputedDecl['op'],
     field: v.getAttribute('field') ?? undefined,
     by: v.getAttribute('by') ?? undefined,
+    window: v.getAttribute('window') ? Number(v.getAttribute('window')) : undefined,
   }));
 }
 

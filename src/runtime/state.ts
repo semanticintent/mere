@@ -321,8 +321,44 @@ export class Store {
 
     if (c.op === 'avg') {
       if (!c.field || filtered.length === 0) return 0;
-      const total = filtered.reduce((acc, item) => acc + toNumber((item as Record<string, unknown>)[c.field!]), 0);
-      return Math.round(total / filtered.length);
+      const windowed = c.window ? filtered.slice(-c.window) : filtered;
+      const total = windowed.reduce((acc, item) => acc + toNumber((item as Record<string, unknown>)[c.field!]), 0);
+      return Math.round(total / windowed.length);
+    }
+
+    if (c.op === 'min' || c.op === 'max') {
+      if (!c.field || filtered.length === 0) return 0;
+      const windowed = c.window ? filtered.slice(-c.window) : filtered;
+      const vals = windowed.map(item => toNumber((item as Record<string, unknown>)[c.field!]));
+      return c.op === 'min' ? Math.min(...vals) : Math.max(...vals);
+    }
+
+    if (c.op === 'group-by') {
+      if (!c.field || !c.by || !Array.isArray(source)) return [];
+      const groups = new Map<string, number>();
+      for (const item of filtered) {
+        const key = String((item as Record<string, unknown>)[c.by] ?? '');
+        const val = toNumber((item as Record<string, unknown>)[c.field]);
+        groups.set(key, (groups.get(key) ?? 0) + val);
+      }
+      return [...groups.entries()]
+        .map(([key, value]) => ({ key, value }))
+        .sort((a, b) => b.value - a.value);
+    }
+
+    if (c.op === 'streak') {
+      if (!Array.isArray(source)) return 0;
+      const sorted = [...source as Record<string, unknown>[]];
+      if (c.by) sorted.sort((a, b) => String(b[c.by!]).localeCompare(String(a[c.by!])));
+      let count = 0;
+      for (const item of sorted) {
+        const passes = c.where
+          ? evalWhere(c.where, item, this)
+          : Boolean(item[c.field ?? '']);
+        if (passes) count++;
+        else break;
+      }
+      return count;
     }
 
     return filtered;

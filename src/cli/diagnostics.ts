@@ -39,6 +39,7 @@ export const CODES = {
   MPD_010: { code: 'MPD-010', category: 'unknown-identifier' as DiagnosticCategory, severity: 'error'   as Severity },
   MPD_011: { code: 'MPD-011', category: 'type-mismatch'      as DiagnosticCategory, severity: 'error'   as Severity },
   MPD_012: { code: 'MPD-012', category: 'type-mismatch'      as DiagnosticCategory, severity: 'warning' as Severity },
+  MPD_013: { code: 'MPD-013', category: 'structural'         as DiagnosticCategory, severity: 'error'   as Severity },
 } as const;
 
 // ─── Location helpers ─────────────────────────────────────────────────────────

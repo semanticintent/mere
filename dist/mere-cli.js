@@ -230,7 +230,8 @@ var CODES = {
   MPD_009: { code: "MPD-009", category: "type-mismatch", severity: "error" },
   MPD_010: { code: "MPD-010", category: "unknown-identifier", severity: "error" },
   MPD_011: { code: "MPD-011", category: "type-mismatch", severity: "error" },
-  MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" }
+  MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" },
+  MPD_013: { code: "MPD-013", category: "structural", severity: "error" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -351,6 +352,34 @@ function checkFile(filePath) {
     }
   });
   const allStateIds = /* @__PURE__ */ new Set([...stateNames, ...computedNames]);
+  const FIELD_REQUIRED = /* @__PURE__ */ new Set(["sum", "avg", "min", "max", "streak", "sum-product", "group-by"]);
+  const BY_REQUIRED = /* @__PURE__ */ new Set(["group-by", "sum-product"]);
+  workbook.querySelectorAll("computed > value").forEach((v) => {
+    const name = v.getAttribute("name") ?? "?";
+    const op = v.getAttribute("op");
+    if (!op) return;
+    const field = v.getAttribute("field");
+    const by = v.getAttribute("by");
+    const loc = nodeLocation(source, v);
+    if (FIELD_REQUIRED.has(op) && !field) {
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_013,
+        `Computed "${name}" with op="${op}" requires a field= attribute.`,
+        filePath,
+        loc,
+        op.length
+      ));
+    }
+    if (BY_REQUIRED.has(op) && !by) {
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_013,
+        `Computed "${name}" with op="${op}" requires a by= attribute.`,
+        filePath,
+        loc,
+        op.length
+      ));
+    }
+  });
   const computedDeps = /* @__PURE__ */ new Map();
   workbook.querySelectorAll("computed > value").forEach((v) => {
     const name = v.getAttribute("name");

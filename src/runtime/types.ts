@@ -20,9 +20,11 @@ export interface ComputedDecl {
   name: string;
   from: string;          // source state name, computed name, or "a,b" for scalar ops
   where?: string;        // filter expression, e.g. "folder = current-tab"
-  op?: 'count' | 'sum' | 'avg' | 'subtract' | 'percent' | 'add' | 'percent-of' | 'sum-product';
-  field?: string;        // numeric field to aggregate (sum/avg/sum-product)
-  by?: string;           // second field for sum-product (price × qty)
+  op?: 'count' | 'sum' | 'avg' | 'subtract' | 'percent' | 'add' | 'percent-of' | 'sum-product'
+     | 'group-by' | 'streak' | 'min' | 'max';
+  field?: string;        // numeric field to aggregate (sum/avg/sum-product/min/max/streak)
+  by?: string;           // group-by: grouping field; sum-product: second factor; streak: date field
+  window?: number;       // rolling window — last N items (avg, min, max)
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
