@@ -11,7 +11,8 @@
 <workbook theme="classic-light">
 
   <state>
-    <value name="workouts" type="record-list" persist>
+    <value name="workouts" type="record-list"
+      default='[{"date":"2024-01-08","type":"Run","duration":45,"done":true},{"date":"2024-01-09","type":"Cycle","duration":60,"done":true},{"date":"2024-01-10","type":"Run","duration":30,"done":true},{"date":"2024-01-11","type":"Swim","duration":40,"done":true},{"date":"2024-01-12","type":"Run","duration":50,"done":true},{"date":"2024-01-13","type":"Cycle","duration":75,"done":true},{"date":"2024-01-14","type":"Run","duration":35,"done":true},{"date":"2024-01-15","type":"Swim","duration":55,"done":true}]'>
       <field name="date"     type="text" />
       <field name="type"     type="text" />
       <field name="duration" type="number" default="0" />
@@ -23,13 +24,12 @@
   </state>
 
   <computed>
-    <value name="total-sessions"   from="workouts"  op="count" />
-    <value name="avg-duration"     from="workouts"  op="avg"    field="duration" />
-    <value name="rolling-avg-7"    from="workouts"  op="avg"    field="duration" window="7" />
-    <value name="best-session"     from="workouts"  op="max"    field="duration" />
-    <value name="shortest-session" from="workouts"  op="min"    field="duration" />
-    <value name="current-streak"   from="workouts"  op="streak" field="done" by="date" where="done = true" />
-    <value name="by-type"          from="workouts"  op="group-by" field="duration" by="type" />
+    <value name="total-sessions"   from="workouts" op="count" />
+    <value name="avg-duration"     from="workouts" op="avg"    field="duration" />
+    <value name="rolling-avg-7"    from="workouts" op="avg"    field="duration" window="7" />
+    <value name="best-session"     from="workouts" op="max"    field="duration" />
+    <value name="shortest-session" from="workouts" op="min"    field="duration" />
+    <value name="current-streak"   from="workouts" op="streak" field="done" by="date" where="done = true" />
   </computed>
 
   <actions>
@@ -39,16 +39,6 @@
       clear new-type
       clear new-duration
     </action>
-    <action name="seed">
-      add-to workouts date "2024-01-08" type "Run"   duration 45 done "true"
-      add-to workouts date "2024-01-09" type "Cycle" duration 60 done "true"
-      add-to workouts date "2024-01-10" type "Run"   duration 30 done "true"
-      add-to workouts date "2024-01-11" type "Swim"  duration 40 done "true"
-      add-to workouts date "2024-01-12" type "Run"   duration 50 done "true"
-      add-to workouts date "2024-01-13" type "Cycle" duration 75 done "true"
-      add-to workouts date "2024-01-14" type "Run"   duration 35 done "true"
-      add-to workouts date "2024-01-15" type "Swim"  duration 55 done "true"
-    </action>
   </actions>
 
   <screen name="dashboard">
@@ -56,16 +46,14 @@
       <heading>Workout Log</heading>
     </header>
 
-    <button !seed>Load sample data</button>
-
     <card>
       <subtitle>Summary</subtitle>
-      <paragraph>Total sessions: <badge @total-sessions /></paragraph>
-      <paragraph>All-time avg (min): <badge @avg-duration /></paragraph>
-      <paragraph>7-session rolling avg: <badge @rolling-avg-7 /></paragraph>
-      <paragraph>Best session (min): <badge @best-session /></paragraph>
-      <paragraph>Shortest session (min): <badge @shortest-session /></paragraph>
-      <paragraph>Current streak: <badge @current-streak /></paragraph>
+      <paragraph>Total sessions: @total-sessions</paragraph>
+      <paragraph>All-time avg: @avg-duration min</paragraph>
+      <paragraph>Last 7 rolling avg: @rolling-avg-7 min</paragraph>
+      <paragraph>Best session: @best-session min</paragraph>
+      <paragraph>Shortest session: @shortest-session min</paragraph>
+      <paragraph>Current streak: @current-streak sessions</paragraph>
     </card>
 
     <card>
@@ -73,12 +61,15 @@
       <chart type="bar" from="workouts" field="duration" label="type" />
     </card>
 
-    <form>
-      <field ~new-date       placeholder="Date (YYYY-MM-DD)" />
-      <field ~new-type       placeholder="Type (Run / Cycle / Swim)" />
-      <field ~new-duration   type="number" placeholder="Duration (min)" />
-      <button !log-workout>Log workout</button>
-    </form>
+    <card>
+      <subtitle>Log a workout</subtitle>
+      <form>
+        <field ~new-date       placeholder="Date (YYYY-MM-DD)" />
+        <field ~new-type       placeholder="Type (Run / Cycle / Swim)" />
+        <field ~new-duration   type="number" placeholder="Duration (min)" />
+        <button !log-workout>Log workout</button>
+      </form>
+    </card>
   </screen>
 
 </workbook>
