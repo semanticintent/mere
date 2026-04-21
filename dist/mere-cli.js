@@ -219,7 +219,8 @@ var CODES = {
   MPD_006: { code: "MPD-006", category: "structural", severity: "error" },
   MPD_007: { code: "MPD-007", category: "structural", severity: "error" },
   MPD_008: { code: "MPD-008", category: "structural", severity: "error" },
-  MPD_009: { code: "MPD-009", category: "type-mismatch", severity: "error" }
+  MPD_009: { code: "MPD-009", category: "type-mismatch", severity: "error" },
+  MPD_010: { code: "MPD-010", category: "unknown-identifier", severity: "error" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -329,9 +330,15 @@ function checkFile(filePath) {
     const name = a.getAttribute("name");
     if (name) actionNames.add(name);
   });
+  const screenTakes = /* @__PURE__ */ new Map();
   workbook.querySelectorAll("screen").forEach((s) => {
     const name = s.getAttribute("name");
-    if (name) screenNames.add(name);
+    if (!name) return;
+    screenNames.add(name);
+    const takesAttr = s.getAttribute("takes") ?? "";
+    if (takesAttr.trim()) {
+      screenTakes.set(name, new Set(takesAttr.trim().split(/\s+/)));
+    }
   });
   const allStateIds = /* @__PURE__ */ new Set([...stateNames, ...computedNames]);
   const computedDeps = /* @__PURE__ */ new Map();
@@ -352,6 +359,35 @@ function checkFile(filePath) {
       ));
     }
   }
+  workbook.querySelectorAll("actions > action").forEach((action) => {
+    const body = action.textContent ?? "";
+    for (const rawLine of body.split("\n")) {
+      const line = rawLine.trim();
+      const m = line.match(/^go-to\s+(\S+)\s+with\s+(.+)$/);
+      if (!m) continue;
+      const targetScreen = m[1];
+      const takes = screenTakes.get(targetScreen);
+      if (!takes) continue;
+      const tokens = m[2].match(/"[^"]*"|@[\w.\-]+|\S+/g) ?? [];
+      for (let i = 0; i + 2 < tokens.length; i += 3) {
+        const key = tokens[i];
+        if (tokens[i + 1] !== "=") {
+          i -= 2;
+          continue;
+        }
+        if (!takes.has(key)) {
+          const loc = nodeLocation(source, action);
+          diagnostics.push(makeDiagnostic(
+            CODES.MPD_010,
+            `"${key}" is not declared in screen "${targetScreen}" takes="${[...takes].join(" ")}".`,
+            filePath,
+            loc,
+            key.length
+          ));
+        }
+      }
+    }
+  });
   if (recordSchemas.size > 0) {
     workbook.querySelectorAll("actions > action").forEach((action) => {
       const body = action.textContent ?? "";
@@ -384,7 +420,10 @@ function checkFile(filePath) {
     });
   }
   workbook.querySelectorAll("screen").forEach((screen) => {
-    walkElement(screen, source, filePath, allStateIds, computedNames, actionNames, diagnostics);
+    const screenName = screen.getAttribute("name") ?? "";
+    const navParams = screenTakes.get(screenName) ?? /* @__PURE__ */ new Set();
+    const screenStateIds = /* @__PURE__ */ new Set([...allStateIds, ...navParams]);
+    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
   });
   return diagnostics;
 }

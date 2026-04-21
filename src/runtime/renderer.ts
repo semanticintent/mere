@@ -8,7 +8,7 @@ export function renderNode(
   node: ASTNode,
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
 ): HTMLElement {
   const handler = ELEMENTS[node.tag];
   if (handler) {
@@ -29,7 +29,7 @@ export function renderChildren(
   node: ASTNode,
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
 ): void {
   for (const child of node.children) {
     container.appendChild(renderNode(child, store, context, onGoTo));
@@ -118,7 +118,7 @@ export function bindAction(
   args: string[],
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
 ): void {
   el.addEventListener('click', () => {
     const argValues = args.map(a => store.get(a, context));

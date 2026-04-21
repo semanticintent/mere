@@ -65,6 +65,8 @@ export class Store {
       }
       return '';
     }
+    // Check render context (nav params) before global state
+    if (context && name in context && name !== 'item') return context[name];
     return this.values.get(name) ?? '';
   }
 
@@ -129,7 +131,7 @@ export class Store {
     name: string,
     args: string[],
     argValues: unknown[],
-    onGoTo: (screen: string) => void,
+    onGoTo: (screen: string, params?: Record<string, unknown>) => void,
     context?: RenderContext,
   ): void {
     // Actions are resolved at call time from the workbook decl
@@ -172,7 +174,15 @@ export class Store {
           }
         }
       } else if (stmt.kind === 'go-to') {
-        onGoTo(stmt.screen);
+        if (stmt.params?.length) {
+          const resolved: Record<string, unknown> = {};
+          for (const { key, value } of stmt.params) {
+            resolved[key] = this.resolveArg(value, context);
+          }
+          onGoTo(stmt.screen, resolved);
+        } else {
+          onGoTo(stmt.screen);
+        }
 
       } else if (stmt.kind === 'clear') {
         const decl = this.stateDecls.get(stmt.target);

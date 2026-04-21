@@ -90,10 +90,11 @@ function parseActionBody(body: string): ActionStatement[] {
     const line = rawLine.trim();
     if (!line) continue;
 
-    // go-to <screen>
-    const goTo = line.match(/^go-to\s+(\S+)$/);
+    // go-to <screen> [with key = value ...]
+    const goTo = line.match(/^go-to\s+(\S+)(?:\s+with\s+(.+))?$/);
     if (goTo) {
-      stmts.push({ kind: 'go-to', screen: goTo[1]! });
+      const params = goTo[2] ? parseNavParams(goTo[2]) : undefined;
+      stmts.push({ kind: 'go-to', screen: goTo[1]!, params });
       continue;
     }
 
@@ -156,10 +157,27 @@ function parseScreens(screenEls: NodeListOf<Element>): ScreenDecl[] {
   return Array.from(screenEls).map(s => {
     const name = s.getAttribute('name') ?? s.getAttribute('id') ?? '';
     const intent = extractIntent(s);
+    const takesAttr = s.getAttribute('takes') ?? '';
+    const takes = takesAttr.trim() ? takesAttr.trim().split(/\s+/) : undefined;
     const root = parseNode(s);
     root.tag = 'screen-root'; // rename so renderer knows this is the screen wrapper
-    return { name, intent, root };
+    return { name, intent, root, takes };
   });
+}
+
+// Parse "key = value key2 = value2 ..." into [{key, value}] pairs.
+function parseNavParams(str: string): Array<{ key: string; value: string }> {
+  const params: Array<{ key: string; value: string }> = [];
+  const tokens = str.match(/"[^"]*"|@[\w.\-]+|\S+/g) ?? [];
+  let i = 0;
+  while (i + 2 < tokens.length) {
+    const key = tokens[i]!;
+    const eq  = tokens[i + 1];
+    const val = tokens[i + 2]!;
+    if (eq === '=') { params.push({ key, value: val }); i += 3; }
+    else { i++; }
+  }
+  return params;
 }
 
 // ─── AST node ─────────────────────────────────────────────────────────────────

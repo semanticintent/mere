@@ -73,10 +73,16 @@ export function checkFile(filePath: string): Diagnostic[] {
     if (name) actionNames.add(name);
   });
 
-  // Gather screens
+  // Gather screens + their takes declarations
+  const screenTakes = new Map<string, Set<string>>();
   workbook.querySelectorAll('screen').forEach(s => {
     const name = s.getAttribute('name');
-    if (name) screenNames.add(name);
+    if (!name) return;
+    screenNames.add(name);
+    const takesAttr = s.getAttribute('takes') ?? '';
+    if (takesAttr.trim()) {
+      screenTakes.set(name, new Set(takesAttr.trim().split(/\s+/)));
+    }
   });
 
   const allStateIds = new Set([...stateNames, ...computedNames]);
@@ -99,6 +105,34 @@ export function checkFile(filePath: string): Diagnostic[] {
       ));
     }
   }
+
+  // ── MPD-010: go-to param not declared in target screen's takes ───────────
+
+  workbook.querySelectorAll('actions > action').forEach(action => {
+    const body = action.textContent ?? '';
+    for (const rawLine of body.split('\n')) {
+      const line = rawLine.trim();
+      const m = line.match(/^go-to\s+(\S+)\s+with\s+(.+)$/);
+      if (!m) continue;
+      const targetScreen = m[1]!;
+      const takes = screenTakes.get(targetScreen);
+      if (!takes) continue; // screen has no takes — params silently ignored (not an error)
+      // Parse "key = value" pairs to extract key names
+      const tokens = m[2]!.match(/"[^"]*"|@[\w.\-]+|\S+/g) ?? [];
+      for (let i = 0; i + 2 < tokens.length; i += 3) {
+        const key = tokens[i]!;
+        if (tokens[i + 1] !== '=') { i -= 2; continue; }
+        if (!takes.has(key)) {
+          const loc = nodeLocation(source, action);
+          diagnostics.push(makeDiagnostic(
+            CODES.MPD_010,
+            `"${key}" is not declared in screen "${targetScreen}" takes="${[...takes].join(' ')}".`,
+            filePath, loc, key.length,
+          ));
+        }
+      }
+    }
+  });
 
   // ── MPD-009: add-to field not in record-list schema ───────────────────────
 
@@ -136,7 +170,11 @@ export function checkFile(filePath: string): Diagnostic[] {
   // ── Walk all screen elements ───────────────────────────────────────────────
 
   workbook.querySelectorAll('screen').forEach(screen => {
-    walkElement(screen, source, filePath, allStateIds, computedNames, actionNames, diagnostics);
+    const screenName = screen.getAttribute('name') ?? '';
+    const navParams  = screenTakes.get(screenName) ?? new Set<string>();
+    // Nav params are valid read bindings within their screen
+    const screenStateIds = new Set([...allStateIds, ...navParams]);
+    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
   });
 
   return diagnostics;

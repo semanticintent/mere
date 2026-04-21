@@ -8,7 +8,7 @@ export type RenderFn = (
   node: ASTNode,
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
   renderChildren: typeof import('./renderer.js').renderChildren,
 ) => HTMLElement;
 
@@ -738,7 +738,7 @@ function renderChildren2(
   node: ASTNode,
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
 ): HTMLElement {
   // Dynamic import would break the bundle; use the registry directly
   const handler = ELEMENTS[node.tag];
@@ -756,7 +756,7 @@ function renderChildrenInline(
   node: ASTNode,
   store: Store,
   context: RenderContext,
-  onGoTo: (screen: string) => void,
+  onGoTo: (screen: string, params?: Record<string, unknown>) => void,
 ): void {
   for (const child of node.children) {
     container.appendChild(renderChildren2(child, store, context, onGoTo));

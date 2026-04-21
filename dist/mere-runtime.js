@@ -100,9 +100,10 @@ var Mere = (() => {
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
       if (!line) continue;
-      const goTo = line.match(/^go-to\s+(\S+)$/);
+      const goTo = line.match(/^go-to\s+(\S+)(?:\s+with\s+(.+))?$/);
       if (goTo) {
-        stmts.push({ kind: "go-to", screen: goTo[1] });
+        const params = goTo[2] ? parseNavParams(goTo[2]) : void 0;
+        stmts.push({ kind: "go-to", screen: goTo[1], params });
         continue;
       }
       const setMatch = line.match(/^set\s+(\S+)\s+to\s+(.+?)(?:\s+where\s+(.+))?$/);
@@ -149,10 +150,29 @@ var Mere = (() => {
     return Array.from(screenEls).map((s) => {
       const name = s.getAttribute("name") ?? s.getAttribute("id") ?? "";
       const intent = extractIntent(s);
+      const takesAttr = s.getAttribute("takes") ?? "";
+      const takes = takesAttr.trim() ? takesAttr.trim().split(/\s+/) : void 0;
       const root = parseNode(s);
       root.tag = "screen-root";
-      return { name, intent, root };
+      return { name, intent, root, takes };
     });
+  }
+  function parseNavParams(str) {
+    const params = [];
+    const tokens = str.match(/"[^"]*"|@[\w.\-]+|\S+/g) ?? [];
+    let i = 0;
+    while (i + 2 < tokens.length) {
+      const key = tokens[i];
+      const eq = tokens[i + 1];
+      const val = tokens[i + 2];
+      if (eq === "=") {
+        params.push({ key, value: val });
+        i += 3;
+      } else {
+        i++;
+      }
+    }
+    return params;
   }
   function parseNode(el) {
     const tag = el.tagName.toLowerCase();
@@ -308,6 +328,7 @@ var Mere = (() => {
         }
         return "";
       }
+      if (context && name in context && name !== "item") return context[name];
       return this.values.get(name) ?? "";
     }
     set(name, value) {
@@ -393,7 +414,15 @@ var Mere = (() => {
             }
           }
         } else if (stmt.kind === "go-to") {
-          onGoTo(stmt.screen);
+          if (stmt.params?.length) {
+            const resolved = {};
+            for (const { key, value } of stmt.params) {
+              resolved[key] = this.resolveArg(value, context);
+            }
+            onGoTo(stmt.screen, resolved);
+          } else {
+            onGoTo(stmt.screen);
+          }
         } else if (stmt.kind === "clear") {
           const decl = this.stateDecls.get(stmt.target);
           const resetVal = decl?.default !== void 0 ? decl.default : defaultFor(decl?.type ?? "text");
@@ -3490,14 +3519,15 @@ var Mere = (() => {
       inner.appendChild(main);
       renderTarget = main;
     }
-    function goTo(screenName) {
+    function goTo(screenName, params) {
       const screen = screenMap.get(screenName);
       if (!screen) {
         console.warn(`[mere] Unknown screen: ${screenName}`);
         return;
       }
       if (currentScreenEl) currentScreenEl.remove();
-      const el = renderNode(screen.root, store, {}, goTo);
+      const ctx = params ? { ...params } : {};
+      const el = renderNode(screen.root, store, ctx, goTo);
       renderTarget.appendChild(el);
       currentScreenEl = el;
       host.querySelectorAll(".mp-nav-item[data-target]").forEach((btn) => {

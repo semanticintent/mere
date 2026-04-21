@@ -29,7 +29,7 @@ export interface ComputedDecl {
 
 export type ActionStatement =
   | { kind: 'set'; target: string; value: string; where?: string }
-  | { kind: 'go-to'; screen: string }
+  | { kind: 'go-to'; screen: string; params?: Array<{ key: string; value: string }> }
   | { kind: 'clear'; target: string }
   | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> }
   | { kind: 'remove-from'; list: string; where: string };
@@ -65,6 +65,7 @@ export interface ScreenDecl {
   name: string;
   intent?: string;
   root: ASTNode;
+  takes?: string[];  // parameter names passed via go-to
 }
 
 export interface WorkbookDecl {

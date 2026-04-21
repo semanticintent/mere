@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deals</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body>
+
+<workbook theme="proton-mail">
+
+  <state>
+    <value name="deals" type="record-list">
+      <field name="name"  type="text" />
+      <field name="stage" type="text" default="lead" />
+      <field name="value" type="number" default="0" />
+    </value>
+    <value name="selected-id"   type="text" />
+    <value name="selected-name" type="text" />
+    <value name="selected-stage" type="text" />
+    <value name="selected-value" type="number" />
+  </state>
+
+  <computed>
+    <value name="deal-count" from="deals" op="count" />
+    <value name="pipeline"   from="deals" op="sum" field="value" />
+  </computed>
+
+  <actions>
+    <action name="open-deal" takes="did dname dstage dvalue">
+      set selected-id    to did
+      set selected-name  to dname
+      set selected-stage to dstage
+      set selected-value to dvalue
+      go-to deal-detail with deal-id = did deal-name = dname
+    </action>
+    <action name="back">
+      go-to pipeline
+    </action>
+    <action name="seed-deals">
+      add-to deals name "Acme Corp" stage "qualified" value 12000
+      add-to deals name "Globex"   stage "proposal"  value 8500
+      add-to deals name "Initech"  stage "lead"       value 3200
+    </action>
+  </actions>
+
+  <screen name="pipeline">
+    <header>
+      <heading>Pipeline</heading>
+      <badge @deal-count />
+    </header>
+
+    <card>
+      <subtitle>Total value: @pipeline</subtitle>
+    </card>
+
+    <button !seed-deals>Load sample deals</button>
+
+    <list @deals>
+      <card !open-deal with item.id item.name item.stage item.value>
+        <heading @item.name />
+        <badge @item.stage />
+        <paragraph>@item.value</paragraph>
+      </card>
+    </list>
+  </screen>
+
+  <screen name="deal-detail" takes="deal-id deal-name">
+    <header>
+      <heading @deal-name />
+    </header>
+
+    <card>
+      <subtitle>ID: @deal-id</subtitle>
+      <paragraph>Stage: @selected-stage</paragraph>
+      <paragraph>Value: @selected-value</paragraph>
+    </card>
+
+    <button !back>← Back to pipeline</button>
+  </screen>
+
+</workbook>
+
+</body>
+</html>

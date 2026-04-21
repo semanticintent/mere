@@ -68,14 +68,15 @@ async function bootstrap(workbookEl: Element): Promise<void> {
     renderTarget = main;
   }
 
-  function goTo(screenName: string): void {
+  function goTo(screenName: string, params?: Record<string, unknown>): void {
     const screen = screenMap.get(screenName);
     if (!screen) {
       console.warn(`[mere] Unknown screen: ${screenName}`);
       return;
     }
     if (currentScreenEl) currentScreenEl.remove();
-    const el = renderNode(screen.root, store, {}, goTo);
+    const ctx = params ? { ...params } : {};
+    const el = renderNode(screen.root, store, ctx, goTo);
     renderTarget.appendChild(el);
     currentScreenEl = el;
 
