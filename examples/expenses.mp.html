@@ -11,21 +11,22 @@
 <workbook theme="classic-light">
 
   <state>
-    <value name="expenses" type="record-list" persist>
+    <value name="expenses" type="record-list"
+      default='[{"description":"Groceries","amount":85,"category":"food"},{"description":"Train tickets","amount":42,"category":"travel"},{"description":"Lunch","amount":18,"category":"food"},{"description":"Hotel","amount":210,"category":"travel"},{"description":"Coffee","amount":6,"category":"food"}]'>
       <field name="description" type="text" />
       <field name="amount"      type="number" default="0" />
       <field name="category"    type="text"   default="general" />
     </value>
     <value name="new-description" type="text" />
     <value name="new-amount"      type="number" />
-    <value name="new-category"    type="text" default="general" />
+    <value name="new-category"    type="text" />
   </state>
 
   <computed>
-    <value name="total"         from="expenses" op="sum"   field="amount" />
-    <value name="count"         from="expenses" op="count" />
-    <value name="food-total"    from="expenses" op="sum"   field="amount" where='category = "food"' />
-    <value name="travel-total"  from="expenses" op="sum"   field="amount" where='category = "travel"' />
+    <value name="total"        from="expenses" op="sum"   field="amount" />
+    <value name="count"        from="expenses" op="count" />
+    <value name="food-total"   from="expenses" op="sum"   field="amount" where='category = "food"' />
+    <value name="travel-total" from="expenses" op="sum"   field="amount" where='category = "travel"' />
   </computed>
 
   <actions>
@@ -33,6 +34,7 @@
       add-to expenses description new-description amount new-amount category new-category
       clear new-description
       clear new-amount
+      clear new-category
     </action>
     <action name="remove-expense" takes="eid">
       remove-from expenses where id = eid
@@ -46,17 +48,21 @@
     </header>
 
     <card>
+      <subtitle>Summary</subtitle>
       <paragraph>Total: @total</paragraph>
       <paragraph>Food: @food-total</paragraph>
       <paragraph>Travel: @travel-total</paragraph>
     </card>
 
-    <form>
-      <field ~new-description placeholder="Description" />
-      <field ~new-amount      type="number" placeholder="Amount" />
-      <field ~new-category    placeholder="Category" />
-      <button !add-expense>Add</button>
-    </form>
+    <card>
+      <subtitle>Add an expense</subtitle>
+      <form>
+        <field ~new-description placeholder="Description" />
+        <field ~new-amount      type="number" placeholder="Amount" />
+        <field ~new-category    placeholder="Category (food / travel / general)" />
+        <button !add-expense>Add expense</button>
+      </form>
+    </card>
 
     <list @expenses>
       <card>
