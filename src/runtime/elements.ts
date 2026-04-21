@@ -686,6 +686,178 @@ const banner: RenderFn = (node, store, context, onGoTo, rc) => {
   return el;
 };
 
+// ─── Chart ────────────────────────────────────────────────────────────────────
+
+const CHART_COLORS = [
+  'var(--mp-accent)', '#22c55e', '#f59e0b', '#ef4444',
+  '#8b5cf6', '#06b6d4', '#f97316', '#ec4899',
+];
+
+function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
+function toNum(v: unknown): number {
+  return typeof v === 'number' ? v : parseFloat(String(v ?? 0)) || 0;
+}
+
+function chartBar(data: Array<Record<string, unknown>>, field: string, label: string): SVGElement {
+  const W = 280, ROW = 26, GAP = 5, LABEL_W = 80, PAD = 8;
+  const rows = data.slice(0, 9);
+  const H = rows.length * (ROW + GAP) + PAD * 2;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%' }) as SVGSVGElement;
+
+  const max = Math.max(...rows.map(r => toNum(r[field])), 1);
+  const barW = W - LABEL_W - PAD * 2;
+
+  rows.forEach((row, i) => {
+    const y    = PAD + i * (ROW + GAP);
+    const val  = toNum(row[field]);
+    const lbl  = String(row[label] ?? '');
+    const fill = toNum(val / max * barW);
+
+    // Track
+    svg.appendChild(svgEl('rect', { x: LABEL_W, y, width: barW, height: ROW,
+      rx: 4, fill: 'var(--mp-bg-secondary)' }));
+    // Bar
+    if (fill > 0) svg.appendChild(svgEl('rect', { x: LABEL_W, y, width: fill, height: ROW,
+      rx: 4, fill: 'var(--mp-accent)', opacity: 0.85 }));
+    // Label
+    const txt = svgEl('text', { x: LABEL_W - 6, y: y + ROW / 2 + 4,
+      'text-anchor': 'end', fill: 'var(--mp-text-secondary)',
+      'font-size': 11, 'font-family': 'var(--mp-font)' });
+    txt.textContent = lbl.length > 11 ? lbl.slice(0, 10) + '…' : lbl;
+    svg.appendChild(txt);
+    // Value
+    const vtxt = svgEl('text', { x: LABEL_W + fill + 5, y: y + ROW / 2 + 4,
+      fill: 'var(--mp-text-secondary)', 'font-size': 10, 'font-family': 'var(--mp-font)' });
+    vtxt.textContent = String(Math.round(val * 10) / 10);
+    svg.appendChild(vtxt);
+  });
+  return svg;
+}
+
+function chartLine(data: Array<Record<string, unknown>>, field: string): SVGElement {
+  const W = 280, H = 120, PAD = 16;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%' }) as SVGSVGElement;
+  const pts  = data.slice(-30);
+  if (pts.length < 2) return svg;
+
+  const vals = pts.map(r => toNum(r[field]));
+  const min  = Math.min(...vals);
+  const max  = Math.max(...vals, min + 1);
+  const plotW = W - PAD * 2;
+  const plotH = H - PAD * 2;
+
+  const px = (i: number) => PAD + (i / (pts.length - 1)) * plotW;
+  const py = (v: number) => PAD + plotH - ((v - min) / (max - min)) * plotH;
+
+  // Grid lines (3)
+  for (let g = 0; g <= 2; g++) {
+    const gy = PAD + (g / 2) * plotH;
+    svg.appendChild(svgEl('line', { x1: PAD, y1: gy, x2: W - PAD, y2: gy,
+      stroke: 'var(--mp-border)', 'stroke-width': 1 }));
+  }
+
+  // Area fill
+  const areaPoints = pts.map((r, i) => `${px(i)},${py(toNum(r[field]))}`).join(' ');
+  const area = svgEl('polygon', {
+    points: `${PAD},${PAD + plotH} ${areaPoints} ${W - PAD},${PAD + plotH}`,
+    fill: 'var(--mp-accent)', opacity: 0.08,
+  });
+  svg.appendChild(area);
+
+  // Line
+  const polyline = svgEl('polyline', {
+    points: areaPoints,
+    fill: 'none', stroke: 'var(--mp-accent)', 'stroke-width': 2,
+    'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+  });
+  svg.appendChild(polyline);
+
+  // Dots
+  pts.forEach((r, i) => {
+    svg.appendChild(svgEl('circle', { cx: px(i), cy: py(toNum(r[field])), r: 3,
+      fill: 'var(--mp-accent)' }));
+  });
+  return svg;
+}
+
+function chartPie(data: Array<Record<string, unknown>>, field: string, label: string): SVGElement {
+  const W = 280, H = 180, CX = 100, CY = 90, R = 72;
+  const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%' }) as SVGSVGElement;
+
+  const slices = data.slice(0, 8);
+  const total  = slices.reduce((s, r) => s + toNum(r[field]), 0);
+  if (total === 0) return svg;
+
+  let angle = -Math.PI / 2;
+  slices.forEach((row, i) => {
+    const val    = toNum(row[field]);
+    const sweep  = (val / total) * Math.PI * 2;
+    const x1 = CX + R * Math.cos(angle);
+    const y1 = CY + R * Math.sin(angle);
+    angle += sweep;
+    const x2 = CX + R * Math.cos(angle);
+    const y2 = CY + R * Math.sin(angle);
+    const large = sweep > Math.PI ? 1 : 0;
+    const path = svgEl('path', {
+      d: `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`,
+      fill: CHART_COLORS[i % CHART_COLORS.length]!,
+      opacity: 0.9,
+      stroke: 'var(--mp-bg)', 'stroke-width': 1.5,
+    });
+    svg.appendChild(path);
+
+    // Legend dot + label on right side
+    const ly = 16 + i * 20;
+    svg.appendChild(svgEl('circle', { cx: 196, cy: ly - 4, r: 5,
+      fill: CHART_COLORS[i % CHART_COLORS.length]! }));
+    const ltxt = svgEl('text', { x: 206, y: ly,
+      fill: 'var(--mp-text-secondary)', 'font-size': 10,
+      'font-family': 'var(--mp-font)' });
+    const lbl = String(row[label] ?? '');
+    ltxt.textContent = (lbl.length > 10 ? lbl.slice(0, 9) + '…' : lbl)
+      + `  ${Math.round(val / total * 100)}%`;
+    svg.appendChild(ltxt);
+  });
+  return svg;
+}
+
+const chart: RenderFn = (node, store, context) => {
+  const type  = node.attrs['type'] ?? 'bar';
+  const from  = node.attrs['from'] ?? (node.bindings.read ?? '');
+  const field = node.attrs['field'] ?? '';
+  const label = node.attrs['label'] ?? '';
+  const where = node.attrs['where'];
+
+  const wrap = div('chart');
+  wrap.dataset['chartType'] = type;
+
+  function render() {
+    const raw = where ? store.filter(from, where) : store.get(from, context);
+    const data = Array.isArray(raw) ? raw as Record<string, unknown>[] : [];
+    wrap.innerHTML = '';
+    if (data.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'mp-chart-empty';
+      empty.textContent = 'No data';
+      wrap.appendChild(empty);
+      return;
+    }
+    const svg = type === 'pie'  ? chartPie(data, field, label)
+              : type === 'line' ? chartLine(data, field)
+              :                   chartBar(data, field, label);
+    wrap.appendChild(svg);
+  }
+
+  render();
+  store.subscribe(from, render);
+  return wrap;
+};
+
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
 export const ELEMENTS: Record<string, ElementHandler> = {
@@ -729,6 +901,8 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'bar': bar,
   // Key-value row
   'kv': kv,
+  // Data visualisation
+  'chart': chart,
 };
 
 // ─── Shared render-children without circular import ───────────────────────────

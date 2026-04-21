@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Charts</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body>
+
+<workbook theme="classic-light">
+
+  <state>
+    <value name="expenses" type="record-list" persist>
+      <field name="category" type="text" />
+      <field name="amount"   type="number" default="0" />
+    </value>
+    <value name="weight-log" type="record-list" persist>
+      <field name="date"  type="text" />
+      <field name="value" type="number" default="0" />
+    </value>
+    <value name="new-category" type="text" />
+    <value name="new-amount"   type="number" />
+    <value name="new-weight"   type="number" />
+  </state>
+
+  <computed>
+    <value name="total-spend" from="expenses" op="sum" field="amount" />
+    <value name="spend-by-category" from="expenses" op="group-by" field="amount" by="category" />
+  </computed>
+
+  <actions>
+    <action name="add-expense">
+      add-to expenses category new-category amount new-amount
+      clear new-category
+      clear new-amount
+    </action>
+    <action name="add-weight">
+      add-to weight-log value new-weight
+      clear new-weight
+    </action>
+    <action name="seed">
+      add-to expenses category "Food"     amount 420
+      add-to expenses category "Travel"   amount 850
+      add-to expenses category "Housing"  amount 1800
+      add-to expenses category "Software" amount 120
+      add-to expenses category "Health"   amount 95
+      add-to weight-log value 78.2
+      add-to weight-log value 77.9
+      add-to weight-log value 78.1
+      add-to weight-log value 77.6
+      add-to weight-log value 77.4
+      add-to weight-log value 77.0
+      add-to weight-log value 76.8
+    </action>
+  </actions>
+
+  <screen name="charts">
+    <header>
+      <heading>Charts</heading>
+    </header>
+
+    <button !seed>Load sample data</button>
+
+    <card>
+      <subtitle>Spend by category (bar)</subtitle>
+      <chart type="bar" from="expenses" field="amount" label="category" />
+    </card>
+
+    <card>
+      <subtitle>Weight trend (line)</subtitle>
+      <chart type="line" from="weight-log" field="value" />
+    </card>
+
+    <card>
+      <subtitle>Spend breakdown (pie)</subtitle>
+      <chart type="pie" from="expenses" field="amount" label="category" />
+    </card>
+
+    <form>
+      <field ~new-category placeholder="Category" />
+      <field ~new-amount type="number" placeholder="Amount" />
+      <button !add-expense>Add expense</button>
+    </form>
+
+    <form>
+      <field ~new-weight type="number" placeholder="Weight (kg)" />
+      <button !add-weight>Log weight</button>
+    </form>
+  </screen>
+
+</workbook>
+
+</body>
+</html>

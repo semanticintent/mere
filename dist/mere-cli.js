@@ -176,6 +176,14 @@ var REGISTRY = [
     attrs: [],
     container: false
   },
+  // ── Data visualisation ────────────────────────────────────────────────────
+  {
+    tag: "chart",
+    description: "Inline SVG chart. type=bar|line|pie. from= binds to a list state, field= is the numeric value, label= is the category label.",
+    sigils: ["@", "?"],
+    attrs: ["type", "from", "field", "label", "where"],
+    container: false
+  },
   // ── Surfaces ───────────────────────────────────────────────────────────────
   {
     tag: "modal",
@@ -220,7 +228,9 @@ var CODES = {
   MPD_007: { code: "MPD-007", category: "structural", severity: "error" },
   MPD_008: { code: "MPD-008", category: "structural", severity: "error" },
   MPD_009: { code: "MPD-009", category: "type-mismatch", severity: "error" },
-  MPD_010: { code: "MPD-010", category: "unknown-identifier", severity: "error" }
+  MPD_010: { code: "MPD-010", category: "unknown-identifier", severity: "error" },
+  MPD_011: { code: "MPD-011", category: "type-mismatch", severity: "error" },
+  MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -424,6 +434,42 @@ function checkFile(filePath) {
     const navParams = screenTakes.get(screenName) ?? /* @__PURE__ */ new Set();
     const screenStateIds = /* @__PURE__ */ new Set([...allStateIds, ...navParams]);
     walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
+  });
+  const listStateNames = /* @__PURE__ */ new Set();
+  workbook.querySelectorAll("state > value").forEach((v) => {
+    const type = v.getAttribute("type");
+    if (type === "list" || type === "record-list") {
+      const name = v.getAttribute("name");
+      if (name) listStateNames.add(name);
+    }
+  });
+  workbook.querySelectorAll("chart").forEach((chartEl) => {
+    const from = chartEl.getAttribute("from") ?? "";
+    const field = chartEl.getAttribute("field") ?? "";
+    if (from && !listStateNames.has(from)) {
+      const loc = nodeLocation(source, chartEl);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_011,
+        `<chart from="${from}"> \u2014 "${from}" is not a list or record-list state value.`,
+        filePath,
+        loc,
+        from.length
+      ));
+    }
+    if (from && field && recordSchemas.has(from)) {
+      const schema = recordSchemas.get(from);
+      const fieldDecl = [...schema].find((f) => f === field);
+      if (!fieldDecl) {
+        const loc = nodeLocation(source, chartEl);
+        diagnostics.push(makeDiagnostic(
+          CODES.MPD_012,
+          `<chart field="${field}"> \u2014 "${field}" is not declared in the record-list schema for "${from}". Declared fields: ${[...schema].join(", ")}.`,
+          filePath,
+          loc,
+          field.length
+        ));
+      }
+    }
   });
   return diagnostics;
 }

@@ -201,7 +201,10 @@ var Mere = (() => {
     // spreadsheet / metric / kv / data-table product column
     "editable",
     "format",
-    "by"
+    "by",
+    // chart
+    "from",
+    "where"
   ]);
   function parseBindings(el) {
     const binding = {};
@@ -1210,6 +1213,194 @@ var Mere = (() => {
     rc(el, node, store, context, onGoTo);
     return el;
   };
+  var CHART_COLORS = [
+    "var(--mp-accent)",
+    "#22c55e",
+    "#f59e0b",
+    "#ef4444",
+    "#8b5cf6",
+    "#06b6d4",
+    "#f97316",
+    "#ec4899"
+  ];
+  function svgEl(tag, attrs) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+    return el;
+  }
+  function toNum(v) {
+    return typeof v === "number" ? v : parseFloat(String(v ?? 0)) || 0;
+  }
+  function chartBar(data, field2, label) {
+    const W = 280, ROW = 26, GAP = 5, LABEL_W = 80, PAD = 8;
+    const rows = data.slice(0, 9);
+    const H = rows.length * (ROW + GAP) + PAD * 2;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%" });
+    const max = Math.max(...rows.map((r) => toNum(r[field2])), 1);
+    const barW = W - LABEL_W - PAD * 2;
+    rows.forEach((row, i) => {
+      const y = PAD + i * (ROW + GAP);
+      const val = toNum(row[field2]);
+      const lbl = String(row[label] ?? "");
+      const fill = toNum(val / max * barW);
+      svg.appendChild(svgEl("rect", {
+        x: LABEL_W,
+        y,
+        width: barW,
+        height: ROW,
+        rx: 4,
+        fill: "var(--mp-bg-secondary)"
+      }));
+      if (fill > 0) svg.appendChild(svgEl("rect", {
+        x: LABEL_W,
+        y,
+        width: fill,
+        height: ROW,
+        rx: 4,
+        fill: "var(--mp-accent)",
+        opacity: 0.85
+      }));
+      const txt = svgEl("text", {
+        x: LABEL_W - 6,
+        y: y + ROW / 2 + 4,
+        "text-anchor": "end",
+        fill: "var(--mp-text-secondary)",
+        "font-size": 11,
+        "font-family": "var(--mp-font)"
+      });
+      txt.textContent = lbl.length > 11 ? lbl.slice(0, 10) + "\u2026" : lbl;
+      svg.appendChild(txt);
+      const vtxt = svgEl("text", {
+        x: LABEL_W + fill + 5,
+        y: y + ROW / 2 + 4,
+        fill: "var(--mp-text-secondary)",
+        "font-size": 10,
+        "font-family": "var(--mp-font)"
+      });
+      vtxt.textContent = String(Math.round(val * 10) / 10);
+      svg.appendChild(vtxt);
+    });
+    return svg;
+  }
+  function chartLine(data, field2) {
+    const W = 280, H = 120, PAD = 16;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%" });
+    const pts = data.slice(-30);
+    if (pts.length < 2) return svg;
+    const vals = pts.map((r) => toNum(r[field2]));
+    const min = Math.min(...vals);
+    const max = Math.max(...vals, min + 1);
+    const plotW = W - PAD * 2;
+    const plotH = H - PAD * 2;
+    const px = (i) => PAD + i / (pts.length - 1) * plotW;
+    const py = (v) => PAD + plotH - (v - min) / (max - min) * plotH;
+    for (let g = 0; g <= 2; g++) {
+      const gy = PAD + g / 2 * plotH;
+      svg.appendChild(svgEl("line", {
+        x1: PAD,
+        y1: gy,
+        x2: W - PAD,
+        y2: gy,
+        stroke: "var(--mp-border)",
+        "stroke-width": 1
+      }));
+    }
+    const areaPoints = pts.map((r, i) => `${px(i)},${py(toNum(r[field2]))}`).join(" ");
+    const area = svgEl("polygon", {
+      points: `${PAD},${PAD + plotH} ${areaPoints} ${W - PAD},${PAD + plotH}`,
+      fill: "var(--mp-accent)",
+      opacity: 0.08
+    });
+    svg.appendChild(area);
+    const polyline = svgEl("polyline", {
+      points: areaPoints,
+      fill: "none",
+      stroke: "var(--mp-accent)",
+      "stroke-width": 2,
+      "stroke-linejoin": "round",
+      "stroke-linecap": "round"
+    });
+    svg.appendChild(polyline);
+    pts.forEach((r, i) => {
+      svg.appendChild(svgEl("circle", {
+        cx: px(i),
+        cy: py(toNum(r[field2])),
+        r: 3,
+        fill: "var(--mp-accent)"
+      }));
+    });
+    return svg;
+  }
+  function chartPie(data, field2, label) {
+    const W = 280, H = 180, CX = 100, CY = 90, R = 72;
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%" });
+    const slices = data.slice(0, 8);
+    const total = slices.reduce((s, r) => s + toNum(r[field2]), 0);
+    if (total === 0) return svg;
+    let angle = -Math.PI / 2;
+    slices.forEach((row, i) => {
+      const val = toNum(row[field2]);
+      const sweep = val / total * Math.PI * 2;
+      const x1 = CX + R * Math.cos(angle);
+      const y1 = CY + R * Math.sin(angle);
+      angle += sweep;
+      const x2 = CX + R * Math.cos(angle);
+      const y2 = CY + R * Math.sin(angle);
+      const large = sweep > Math.PI ? 1 : 0;
+      const path = svgEl("path", {
+        d: `M ${CX} ${CY} L ${x1} ${y1} A ${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`,
+        fill: CHART_COLORS[i % CHART_COLORS.length],
+        opacity: 0.9,
+        stroke: "var(--mp-bg)",
+        "stroke-width": 1.5
+      });
+      svg.appendChild(path);
+      const ly = 16 + i * 20;
+      svg.appendChild(svgEl("circle", {
+        cx: 196,
+        cy: ly - 4,
+        r: 5,
+        fill: CHART_COLORS[i % CHART_COLORS.length]
+      }));
+      const ltxt = svgEl("text", {
+        x: 206,
+        y: ly,
+        fill: "var(--mp-text-secondary)",
+        "font-size": 10,
+        "font-family": "var(--mp-font)"
+      });
+      const lbl = String(row[label] ?? "");
+      ltxt.textContent = (lbl.length > 10 ? lbl.slice(0, 9) + "\u2026" : lbl) + `  ${Math.round(val / total * 100)}%`;
+      svg.appendChild(ltxt);
+    });
+    return svg;
+  }
+  var chart = (node, store, context) => {
+    const type = node.attrs["type"] ?? "bar";
+    const from = node.attrs["from"] ?? (node.bindings.read ?? "");
+    const field2 = node.attrs["field"] ?? "";
+    const label = node.attrs["label"] ?? "";
+    const where = node.attrs["where"];
+    const wrap = div("chart");
+    wrap.dataset["chartType"] = type;
+    function render() {
+      const raw = where ? store.filter(from, where) : store.get(from, context);
+      const data = Array.isArray(raw) ? raw : [];
+      wrap.innerHTML = "";
+      if (data.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "mp-chart-empty";
+        empty.textContent = "No data";
+        wrap.appendChild(empty);
+        return;
+      }
+      const svg = type === "pie" ? chartPie(data, field2, label) : type === "line" ? chartLine(data, field2) : chartBar(data, field2, label);
+      wrap.appendChild(svg);
+    }
+    render();
+    store.subscribe(from, render);
+    return wrap;
+  };
   var ELEMENTS = {
     "screen-root": screenRoot,
     "header": header,
@@ -1255,7 +1446,9 @@ var Mere = (() => {
     "metric-group": metricGroup,
     "bar": bar,
     // Key-value row
-    "kv": kv
+    "kv": kv,
+    // Data visualisation
+    "chart": chart
   };
   function renderChildren2(node, store, context, onGoTo) {
     const handler = ELEMENTS[node.tag];

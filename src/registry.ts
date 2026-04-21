@@ -190,6 +190,15 @@ export const REGISTRY: ElementMeta[] = [
     container: false,
   },
 
+  // ── Data visualisation ────────────────────────────────────────────────────
+  {
+    tag: 'chart',
+    description: 'Inline SVG chart. type=bar|line|pie. from= binds to a list state, field= is the numeric value, label= is the category label.',
+    sigils: ['@', '?'],
+    attrs: ['type', 'from', 'field', 'label', 'where'],
+    container: false,
+  },
+
   // ── Surfaces ───────────────────────────────────────────────────────────────
   {
     tag: 'modal',

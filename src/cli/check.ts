@@ -177,6 +177,47 @@ export function checkFile(filePath: string): Diagnostic[] {
     walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
   });
 
+  // ── MPD-011/012: chart element validation ─────────────────────────────────
+
+  // Build a map of list/record-list state names for chart validation
+  const listStateNames = new Set<string>();
+  workbook.querySelectorAll('state > value').forEach(v => {
+    const type = v.getAttribute('type');
+    if (type === 'list' || type === 'record-list') {
+      const name = v.getAttribute('name');
+      if (name) listStateNames.add(name);
+    }
+  });
+
+  workbook.querySelectorAll('chart').forEach(chartEl => {
+    const from  = chartEl.getAttribute('from') ?? '';
+    const field = chartEl.getAttribute('field') ?? '';
+
+    // MPD-011: from must reference a list or record-list state
+    if (from && !listStateNames.has(from)) {
+      const loc = nodeLocation(source, chartEl);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_011,
+        `<chart from="${from}"> — "${from}" is not a list or record-list state value.`,
+        filePath, loc, from.length,
+      ));
+    }
+
+    // MPD-012: field should be a known numeric field in a record-list schema
+    if (from && field && recordSchemas.has(from)) {
+      const schema = recordSchemas.get(from)!;
+      const fieldDecl = [...schema].find(f => f === field);
+      if (!fieldDecl) {
+        const loc = nodeLocation(source, chartEl);
+        diagnostics.push(makeDiagnostic(
+          CODES.MPD_012,
+          `<chart field="${field}"> — "${field}" is not declared in the record-list schema for "${from}". Declared fields: ${[...schema].join(', ')}.`,
+          filePath, loc, field.length,
+        ));
+      }
+    }
+  });
+
   return diagnostics;
 }
 

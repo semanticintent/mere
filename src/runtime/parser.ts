@@ -208,6 +208,8 @@ const PASSTHROUGH_ATTRS = new Set([
   'field', 'label', 'as',
   // spreadsheet / metric / kv / data-table product column
   'editable', 'format', 'by',
+  // chart
+  'from', 'where',
 ]);
 
 function parseBindings(el: Element): Binding {
