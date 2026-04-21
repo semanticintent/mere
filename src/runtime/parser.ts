@@ -1,5 +1,5 @@
 import type {
-  WorkbookDecl, StateDecl, StateType, ComputedDecl, ActionDecl,
+  WorkbookDecl, StateDecl, StateType, FieldDecl, ComputedDecl, ActionDecl,
   ActionStatement, ScreenDecl, ASTNode, Binding,
 } from './types.js';
 
@@ -22,20 +22,37 @@ export function parseWorkbook(el: Element): WorkbookDecl {
 
 function parseState(stateEl: Element | null): StateDecl[] {
   if (!stateEl) return [];
-  return Array.from(stateEl.querySelectorAll(':scope > value')).map(v => ({
-    name: req(v, 'name'),
-    type: (v.getAttribute('type') ?? 'text') as StateType,
-    default: parseDefault(v.getAttribute('value') ?? v.getAttribute('default'), v.getAttribute('type') ?? 'text'),
-    persist: v.hasAttribute('persist'),
-  }));
+  return Array.from(stateEl.querySelectorAll(':scope > value')).map(v => {
+    const type = (v.getAttribute('type') ?? 'text') as StateType;
+    const fields = type === 'record-list' ? parseFieldDecls(v) : undefined;
+    return {
+      name: req(v, 'name'),
+      type,
+      default: parseDefault(v.getAttribute('value') ?? v.getAttribute('default'), type),
+      persist: v.hasAttribute('persist'),
+      fields,
+    };
+  });
+}
+
+function parseFieldDecls(valueEl: Element): FieldDecl[] {
+  return Array.from(valueEl.querySelectorAll(':scope > field')).map(f => {
+    const rawDefault = f.getAttribute('default') ?? undefined;
+    const type = (f.getAttribute('type') ?? 'text') as FieldDecl['type'];
+    return {
+      name: req(f, 'name'),
+      type,
+      default: rawDefault !== undefined ? parseDefault(rawDefault, type) : undefined,
+    };
+  });
 }
 
 function parseDefault(raw: string | null, type: string): unknown {
   if (raw === null) return undefined;
   if (type === 'number') return Number(raw);
   if (type === 'boolean') return raw === 'true';
-  if (type === 'list' || type === 'map') {
-    try { return JSON.parse(raw); } catch { return type === 'list' ? [] : {}; }
+  if (type === 'list' || type === 'record-list' || type === 'map') {
+    try { return JSON.parse(raw); } catch { return type === 'map' ? {} : []; }
   }
   return raw;
 }

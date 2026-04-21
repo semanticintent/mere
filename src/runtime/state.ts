@@ -1,4 +1,4 @@
-import type { StateDecl, ComputedDecl, WorkbookDecl, RenderContext } from './types.js';
+import type { StateDecl, FieldDecl, ComputedDecl, WorkbookDecl, RenderContext } from './types.js';
 import type { Persist } from './persist.js';
 
 type Subscriber = () => void;
@@ -10,6 +10,7 @@ export class Store {
   private subs = new Map<string, Set<Subscriber>>();
   private computed: ComputedDecl[] = [];
   private stateDecls = new Map<string, StateDecl>();
+  private fieldSchemas = new Map<string, FieldDecl[]>();
   private persist: Persist | null = null;
   private saveTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -18,6 +19,9 @@ export class Store {
 
     for (const s of decl.state) {
       this.stateDecls.set(s.name, s);
+      if (s.type === 'record-list' && s.fields?.length) {
+        this.fieldSchemas.set(s.name, s.fields);
+      }
       const initial = s.default !== undefined ? s.default : defaultFor(s.type);
       this.values.set(s.name, initial);
     }
@@ -188,6 +192,15 @@ export class Store {
               item[key] = scope[value] ?? this.resolveArg(value, context);
             }
           }
+          // Apply schema defaults for fields not explicitly provided
+          const schema = this.fieldSchemas.get(stmt.list);
+          if (schema) {
+            for (const fieldDecl of schema) {
+              if (!(fieldDecl.name in item) && fieldDecl.default !== undefined) {
+                item[fieldDecl.name] = coerceField(fieldDecl.default, fieldDecl.type);
+              }
+            }
+          }
           if (!item['id']) item['id'] = String(Date.now() + Math.random());
           if (!item['received-at']) item['received-at'] = new Date().toISOString();
           this.set(stmt.list, [...list, item]);
@@ -319,10 +332,17 @@ function defaultFor(type: string): unknown {
     case 'text': return '';
     case 'number': return 0;
     case 'boolean': return false;
-    case 'list': return [];
+    case 'list':
+    case 'record-list': return [];
     case 'map': return {};
     default: return null;
   }
+}
+
+function coerceField(value: unknown, type: 'text' | 'number' | 'boolean'): unknown {
+  if (type === 'number') return typeof value === 'number' ? value : parseFloat(String(value)) || 0;
+  if (type === 'boolean') return value === true || value === 'true';
+  return String(value ?? '');
 }
 
 function getPath(obj: Record<string, unknown>, path: string): unknown {

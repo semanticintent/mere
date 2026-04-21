@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Expenses</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body>
+
+<workbook theme="classic-light">
+
+  <state>
+    <value name="expenses" type="record-list" persist>
+      <field name="description" type="text" />
+      <field name="amount"      type="number" default="0" />
+      <field name="category"    type="text"   default="general" />
+    </value>
+    <value name="new-description" type="text" />
+    <value name="new-amount"      type="number" />
+    <value name="new-category"    type="text" default="general" />
+  </state>
+
+  <computed>
+    <value name="total"         from="expenses" op="sum"   field="amount" />
+    <value name="count"         from="expenses" op="count" />
+    <value name="food-total"    from="expenses" op="sum"   field="amount" where='category = "food"' />
+    <value name="travel-total"  from="expenses" op="sum"   field="amount" where='category = "travel"' />
+  </computed>
+
+  <actions>
+    <action name="add-expense">
+      add-to expenses description new-description amount new-amount category new-category
+      clear new-description
+      clear new-amount
+    </action>
+    <action name="remove-expense" takes="eid">
+      remove-from expenses where id = eid
+    </action>
+  </actions>
+
+  <screen name="expenses">
+    <header>
+      <heading>Expenses</heading>
+      <badge @count />
+    </header>
+
+    <card>
+      <paragraph>Total: @total</paragraph>
+      <paragraph>Food: @food-total</paragraph>
+      <paragraph>Travel: @travel-total</paragraph>
+    </card>
+
+    <form>
+      <field ~new-description placeholder="Description" />
+      <field ~new-amount      type="number" placeholder="Amount" />
+      <field ~new-category    placeholder="Category" />
+      <button !add-expense>Add</button>
+    </form>
+
+    <list @expenses>
+      <card>
+        <heading @item.description />
+        <paragraph>@item.amount · @item.category</paragraph>
+        <button !remove-expense with item.id>Remove</button>
+      </card>
+    </list>
+  </screen>
+
+</workbook>
+
+</body>
+</html>

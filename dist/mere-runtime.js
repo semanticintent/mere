@@ -38,22 +38,38 @@ var Mere = (() => {
   }
   function parseState(stateEl) {
     if (!stateEl) return [];
-    return Array.from(stateEl.querySelectorAll(":scope > value")).map((v) => ({
-      name: req(v, "name"),
-      type: v.getAttribute("type") ?? "text",
-      default: parseDefault(v.getAttribute("value") ?? v.getAttribute("default"), v.getAttribute("type") ?? "text"),
-      persist: v.hasAttribute("persist")
-    }));
+    return Array.from(stateEl.querySelectorAll(":scope > value")).map((v) => {
+      const type = v.getAttribute("type") ?? "text";
+      const fields = type === "record-list" ? parseFieldDecls(v) : void 0;
+      return {
+        name: req(v, "name"),
+        type,
+        default: parseDefault(v.getAttribute("value") ?? v.getAttribute("default"), type),
+        persist: v.hasAttribute("persist"),
+        fields
+      };
+    });
+  }
+  function parseFieldDecls(valueEl) {
+    return Array.from(valueEl.querySelectorAll(":scope > field")).map((f) => {
+      const rawDefault = f.getAttribute("default") ?? void 0;
+      const type = f.getAttribute("type") ?? "text";
+      return {
+        name: req(f, "name"),
+        type,
+        default: rawDefault !== void 0 ? parseDefault(rawDefault, type) : void 0
+      };
+    });
   }
   function parseDefault(raw, type) {
     if (raw === null) return void 0;
     if (type === "number") return Number(raw);
     if (type === "boolean") return raw === "true";
-    if (type === "list" || type === "map") {
+    if (type === "list" || type === "record-list" || type === "map") {
       try {
         return JSON.parse(raw);
       } catch {
-        return type === "list" ? [] : {};
+        return type === "map" ? {} : [];
       }
     }
     return raw;
@@ -245,12 +261,16 @@ var Mere = (() => {
     subs = /* @__PURE__ */ new Map();
     computed = [];
     stateDecls = /* @__PURE__ */ new Map();
+    fieldSchemas = /* @__PURE__ */ new Map();
     persist = null;
     saveTimers = /* @__PURE__ */ new Map();
     init(decl) {
       this.computed = decl.computed;
       for (const s of decl.state) {
         this.stateDecls.set(s.name, s);
+        if (s.type === "record-list" && s.fields?.length) {
+          this.fieldSchemas.set(s.name, s.fields);
+        }
         const initial = s.default !== void 0 ? s.default : defaultFor(s.type);
         this.values.set(s.name, initial);
       }
@@ -389,6 +409,14 @@ var Mere = (() => {
                 item[key] = scope[value] ?? this.resolveArg(value, context);
               }
             }
+            const schema = this.fieldSchemas.get(stmt.list);
+            if (schema) {
+              for (const fieldDecl of schema) {
+                if (!(fieldDecl.name in item) && fieldDecl.default !== void 0) {
+                  item[fieldDecl.name] = coerceField(fieldDecl.default, fieldDecl.type);
+                }
+              }
+            }
             if (!item["id"]) item["id"] = String(Date.now() + Math.random());
             if (!item["received-at"]) item["received-at"] = (/* @__PURE__ */ new Date()).toISOString();
             this.set(stmt.list, [...list, item]);
@@ -492,12 +520,18 @@ var Mere = (() => {
       case "boolean":
         return false;
       case "list":
+      case "record-list":
         return [];
       case "map":
         return {};
       default:
         return null;
     }
+  }
+  function coerceField(value, type) {
+    if (type === "number") return typeof value === "number" ? value : parseFloat(String(value)) || 0;
+    if (type === "boolean") return value === true || value === "true";
+    return String(value ?? "");
   }
   function getPath(obj, path) {
     const parts = path.split(".");

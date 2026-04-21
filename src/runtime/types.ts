@@ -1,12 +1,19 @@
 // ─── State ────────────────────────────────────────────────────────────────────
 
-export type StateType = 'text' | 'number' | 'boolean' | 'list' | 'map';
+export type StateType = 'text' | 'number' | 'boolean' | 'list' | 'map' | 'record-list';
+
+export interface FieldDecl {
+  name: string;
+  type: 'text' | 'number' | 'boolean';
+  default?: unknown;
+}
 
 export interface StateDecl {
   name: string;
   type: StateType;
   default?: unknown;
   persist: boolean;
+  fields?: FieldDecl[];  // only for record-list
 }
 
 export interface ComputedDecl {

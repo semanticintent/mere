@@ -218,7 +218,8 @@ var CODES = {
   MPD_005: { code: "MPD-005", category: "type-mismatch", severity: "error" },
   MPD_006: { code: "MPD-006", category: "structural", severity: "error" },
   MPD_007: { code: "MPD-007", category: "structural", severity: "error" },
-  MPD_008: { code: "MPD-008", category: "structural", severity: "error" }
+  MPD_008: { code: "MPD-008", category: "structural", severity: "error" },
+  MPD_009: { code: "MPD-009", category: "type-mismatch", severity: "error" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -306,9 +307,19 @@ function checkFile(filePath) {
   const computedNames = /* @__PURE__ */ new Set();
   const actionNames = /* @__PURE__ */ new Set();
   const screenNames = /* @__PURE__ */ new Set();
+  const recordSchemas = /* @__PURE__ */ new Map();
   workbook.querySelectorAll("state > value").forEach((v) => {
     const name = v.getAttribute("name");
-    if (name) stateNames.add(name);
+    if (!name) return;
+    stateNames.add(name);
+    if (v.getAttribute("type") === "record-list") {
+      const fieldNames = /* @__PURE__ */ new Set();
+      v.querySelectorAll("field").forEach((f) => {
+        const fn = f.getAttribute("name");
+        if (fn) fieldNames.add(fn);
+      });
+      if (fieldNames.size > 0) recordSchemas.set(name, fieldNames);
+    }
   });
   workbook.querySelectorAll("computed > value").forEach((v) => {
     const name = v.getAttribute("name");
@@ -340,6 +351,37 @@ function checkFile(filePath) {
         name.length
       ));
     }
+  }
+  if (recordSchemas.size > 0) {
+    workbook.querySelectorAll("actions > action").forEach((action) => {
+      const body = action.textContent ?? "";
+      for (const rawLine of body.split("\n")) {
+        const line = rawLine.trim();
+        const m = line.match(/^add-to\s+(\S+)\s+(.+)$/);
+        if (!m) continue;
+        const listName = m[1];
+        const schema = recordSchemas.get(listName);
+        if (!schema) continue;
+        const tokens = [];
+        const tokenRe = /"[^"]*"|\S+/g;
+        let tm;
+        while ((tm = tokenRe.exec(m[2])) !== null) tokens.push(tm[0]);
+        for (let i = 0; i < tokens.length; i += 2) {
+          const key = tokens[i];
+          if (!key.startsWith('"') && !schema.has(key)) {
+            const actionEl = action;
+            const loc = nodeLocation(source, actionEl);
+            diagnostics.push(makeDiagnostic(
+              CODES.MPD_009,
+              `Field "${key}" is not declared in the record-list schema for "${listName}". Declared fields: ${[...schema].join(", ")}.`,
+              filePath,
+              loc,
+              key.length
+            ));
+          }
+        }
+      }
+    });
   }
   workbook.querySelectorAll("screen").forEach((screen) => {
     walkElement(screen, source, filePath, allStateIds, computedNames, actionNames, diagnostics);

@@ -39,15 +39,26 @@ export function checkFile(filePath: string): Diagnostic[] {
   }
 
   // Collect declared identifiers for MPD-003 checks
-  const stateNames   = new Set<string>();
+  const stateNames    = new Set<string>();
   const computedNames = new Set<string>();
-  const actionNames  = new Set<string>();
-  const screenNames  = new Set<string>();
+  const actionNames   = new Set<string>();
+  const screenNames   = new Set<string>();
+  // record-list schemas: listName → Set of declared field names
+  const recordSchemas = new Map<string, Set<string>>();
 
   // Gather state
   workbook.querySelectorAll('state > value').forEach(v => {
     const name = v.getAttribute('name');
-    if (name) stateNames.add(name);
+    if (!name) return;
+    stateNames.add(name);
+    if (v.getAttribute('type') === 'record-list') {
+      const fieldNames = new Set<string>();
+      v.querySelectorAll('field').forEach(f => {
+        const fn = f.getAttribute('name');
+        if (fn) fieldNames.add(fn);
+      });
+      if (fieldNames.size > 0) recordSchemas.set(name, fieldNames);
+    }
   });
 
   // Gather computed
@@ -87,6 +98,39 @@ export function checkFile(filePath: string): Diagnostic[] {
         filePath, loc, name.length,
       ));
     }
+  }
+
+  // ── MPD-009: add-to field not in record-list schema ───────────────────────
+
+  if (recordSchemas.size > 0) {
+    workbook.querySelectorAll('actions > action').forEach(action => {
+      const body = action.textContent ?? '';
+      for (const rawLine of body.split('\n')) {
+        const line = rawLine.trim();
+        const m = line.match(/^add-to\s+(\S+)\s+(.+)$/);
+        if (!m) continue;
+        const listName = m[1]!;
+        const schema = recordSchemas.get(listName);
+        if (!schema) continue;
+        // Extract key names from "key value key value ..." pairs
+        const tokens: string[] = [];
+        const tokenRe = /"[^"]*"|\S+/g;
+        let tm: RegExpExecArray | null;
+        while ((tm = tokenRe.exec(m[2]!)) !== null) tokens.push(tm[0]!);
+        for (let i = 0; i < tokens.length; i += 2) {
+          const key = tokens[i]!;
+          if (!key.startsWith('"') && !schema.has(key)) {
+            const actionEl = action;
+            const loc = nodeLocation(source, actionEl);
+            diagnostics.push(makeDiagnostic(
+              CODES.MPD_009,
+              `Field "${key}" is not declared in the record-list schema for "${listName}". Declared fields: ${[...schema].join(', ')}.`,
+              filePath, loc, key.length,
+            ));
+          }
+        }
+      }
+    });
   }
 
   // ── Walk all screen elements ───────────────────────────────────────────────
