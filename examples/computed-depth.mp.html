@@ -48,12 +48,12 @@
 
     <card>
       <subtitle>Summary</subtitle>
-      <paragraph>Total sessions: @total-sessions</paragraph>
-      <paragraph>All-time avg: @avg-duration min</paragraph>
-      <paragraph>Last 7 rolling avg: @rolling-avg-7 min</paragraph>
-      <paragraph>Best session: @best-session min</paragraph>
-      <paragraph>Shortest session: @shortest-session min</paragraph>
-      <paragraph>Current streak: @current-streak sessions</paragraph>
+      <kv label="Total sessions"      @total-sessions />
+      <kv label="All-time avg (min)"  @avg-duration />
+      <kv label="Rolling avg — last 7" @rolling-avg-7 />
+      <kv label="Best session (min)"  @best-session />
+      <kv label="Shortest (min)"      @shortest-session />
+      <kv label="Current streak"      @current-streak />
     </card>
 
     <card>

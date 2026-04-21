@@ -190,6 +190,15 @@ export const REGISTRY: ElementMeta[] = [
     container: false,
   },
 
+  // ── Data display ──────────────────────────────────────────────────────────
+  {
+    tag: 'kv',
+    description: 'Key/value row. label= sets the label, @ binds the value. format=currency|percent for numeric formatting.',
+    sigils: ['@', '?'],
+    attrs: ['label', 'format'],
+    container: false,
+  },
+
   // ── Data visualisation ────────────────────────────────────────────────────
   {
     tag: 'chart',
