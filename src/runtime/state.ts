@@ -198,15 +198,19 @@ export class Store {
           for (const { key, value } of stmt.fields) {
             if (value.startsWith('"') && value.endsWith('"')) {
               item[key] = value.slice(1, -1);
+            } else if (value !== '' && !isNaN(Number(value))) {
+              item[key] = Number(value);
             } else {
               item[key] = scope[value] ?? this.resolveArg(value, context);
             }
           }
-          // Apply schema defaults for fields not explicitly provided
+          // Apply schema: coerce set fields, fill defaults for missing fields
           const schema = this.fieldSchemas.get(stmt.list);
           if (schema) {
             for (const fieldDecl of schema) {
-              if (!(fieldDecl.name in item) && fieldDecl.default !== undefined) {
+              if (fieldDecl.name in item) {
+                item[fieldDecl.name] = coerceField(item[fieldDecl.name], fieldDecl.type);
+              } else if (fieldDecl.default !== undefined) {
                 item[fieldDecl.name] = coerceField(fieldDecl.default, fieldDecl.type);
               }
             }

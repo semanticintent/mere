@@ -438,6 +438,8 @@ var Mere = (() => {
             for (const { key, value } of stmt.fields) {
               if (value.startsWith('"') && value.endsWith('"')) {
                 item[key] = value.slice(1, -1);
+              } else if (value !== "" && !isNaN(Number(value))) {
+                item[key] = Number(value);
               } else {
                 item[key] = scope[value] ?? this.resolveArg(value, context);
               }
@@ -445,7 +447,9 @@ var Mere = (() => {
             const schema = this.fieldSchemas.get(stmt.list);
             if (schema) {
               for (const fieldDecl of schema) {
-                if (!(fieldDecl.name in item) && fieldDecl.default !== void 0) {
+                if (fieldDecl.name in item) {
+                  item[fieldDecl.name] = coerceField(item[fieldDecl.name], fieldDecl.type);
+                } else if (fieldDecl.default !== void 0) {
                   item[fieldDecl.name] = coerceField(fieldDecl.default, fieldDecl.type);
                 }
               }
