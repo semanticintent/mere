@@ -118,6 +118,20 @@ function parseActionBody(body: string): ActionStatement[] {
       continue;
     }
 
+    // increment <target> [by <n>]
+    const incrMatch = line.match(/^increment\s+(\S+)(?:\s+by\s+(\S+))?$/);
+    if (incrMatch) {
+      stmts.push({ kind: 'increment', target: incrMatch[1]!, by: Number(incrMatch[2] ?? 1) });
+      continue;
+    }
+
+    // decrement <target> [by <n>]
+    const decrMatch = line.match(/^decrement\s+(\S+)(?:\s+by\s+(\S+))?$/);
+    if (decrMatch) {
+      stmts.push({ kind: 'decrement', target: decrMatch[1]!, by: Number(decrMatch[2] ?? 1) });
+      continue;
+    }
+
     // add-to <list> key value key value ...
     // e.g. add-to messages sender "Me" body reply-draft folder "sent"
     const addToMatch = line.match(/^add-to\s+(\S+)\s+(.+)$/);

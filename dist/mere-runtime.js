@@ -122,6 +122,16 @@ var Mere = (() => {
         stmts.push({ kind: "clear", target: clearMatch[1] });
         continue;
       }
+      const incrMatch = line.match(/^increment\s+(\S+)(?:\s+by\s+(\S+))?$/);
+      if (incrMatch) {
+        stmts.push({ kind: "increment", target: incrMatch[1], by: Number(incrMatch[2] ?? 1) });
+        continue;
+      }
+      const decrMatch = line.match(/^decrement\s+(\S+)(?:\s+by\s+(\S+))?$/);
+      if (decrMatch) {
+        stmts.push({ kind: "decrement", target: decrMatch[1], by: Number(decrMatch[2] ?? 1) });
+        continue;
+      }
       const addToMatch = line.match(/^add-to\s+(\S+)\s+(.+)$/);
       if (addToMatch) {
         const fields = parseKeyValuePairs(addToMatch[2].trim());
@@ -466,6 +476,12 @@ var Mere = (() => {
             );
             this.set(stmt.list, updated);
           }
+        } else if (stmt.kind === "increment") {
+          const cur = Number(this.values.get(stmt.target) ?? 0);
+          this.set(stmt.target, cur + stmt.by);
+        } else if (stmt.kind === "decrement") {
+          const cur = Number(this.values.get(stmt.target) ?? 0);
+          this.set(stmt.target, cur - stmt.by);
         }
       }
     }

@@ -34,7 +34,9 @@ export type ActionStatement =
   | { kind: 'go-to'; screen: string; params?: Array<{ key: string; value: string }> }
   | { kind: 'clear'; target: string }
   | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> }
-  | { kind: 'remove-from'; list: string; where: string };
+  | { kind: 'remove-from'; list: string; where: string }
+  | { kind: 'increment'; target: string; by: number }
+  | { kind: 'decrement'; target: string; by: number };
 
 export interface ActionDecl {
   name: string;

@@ -228,6 +228,12 @@ export class Store {
           );
           this.set(stmt.list, updated);
         }
+      } else if (stmt.kind === 'increment') {
+        const cur = Number(this.values.get(stmt.target) ?? 0);
+        this.set(stmt.target, cur + stmt.by);
+      } else if (stmt.kind === 'decrement') {
+        const cur = Number(this.values.get(stmt.target) ?? 0);
+        this.set(stmt.target, cur - stmt.by);
       }
     }
   }
