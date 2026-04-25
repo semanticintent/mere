@@ -5,6 +5,10 @@
 A `.mp.html` file contains screens, state, behavior, theme, and data.
 Open it — it runs. Send it — it travels. No server, no account, no build step.
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19751778.svg)](https://doi.org/10.5281/zenodo.19751778)
+[![npm](https://img.shields.io/npm/v/mere)](https://www.npmjs.com/package/mere)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 → **[mere.semanticintent.dev](https://mere.semanticintent.dev)**
 
 ---

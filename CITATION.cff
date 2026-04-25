@@ -3,8 +3,9 @@ message: "If you use Mere in your work, please cite it using this metadata."
 type: software
 
 title: "Mere: A Workbook Format for Portable, Self-Contained Applications"
-version: 0.1.0
+version: 0.1.1
 date-released: 2026-04-24
+doi: "10.5281/zenodo.19751778"
 
 authors:
   - family-names: Shatny
