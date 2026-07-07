@@ -705,6 +705,10 @@ ${banner}${runtime}
       packed = inlineTag + "\n" + source;
     }
   }
+  const sourceB64 = Buffer.from(source, "utf8").toString("base64");
+  const provenanceTag = `<script type="application/mere-source" id="mere-original-source">${sourceB64}</script>`;
+  packed = packed.includes("</body>") ? packed.replace("</body>", `${provenanceTag}
+</body>`) : packed + "\n" + provenanceTag;
   const outputPath = opts.out ?? defaultOutputPath(inputPath);
   writeFileSync(outputPath, packed, "utf8");
   return {
@@ -861,6 +865,287 @@ function runInspectCommand(args2) {
   }
 }
 
+// src/cli/dev.ts
+import { createReadStream, existsSync as existsSync2, readdirSync, readFileSync as readFileSync4, statSync, watch } from "fs";
+import { createServer } from "http";
+import { extname as extname2, join, relative, resolve as resolve2 } from "path";
+import { spawn } from "child_process";
+var MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "application/javascript",
+  ".css": "text/css",
+  ".json": "application/json",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon"
+};
+var RELOAD_SCRIPT = `
+<script>
+  new EventSource('/__mere-dev-reload').onmessage = () => location.reload();
+</script>
+`;
+function runCheck(dir, useColor) {
+  const files = findWorkbooks(dir);
+  let total = 0;
+  for (const file of files) {
+    const diags = checkFile(file);
+    total += diags.length;
+    for (const d of diags) console.log(formatDiagnostic(d, useColor));
+  }
+  if (files.length > 0) {
+    console.log(total === 0 ? `\u2713 ${files.length} workbook(s) clean` : `${total} diagnostic(s)`);
+  }
+}
+function findWorkbooks(dir) {
+  const out = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) out.push(...findWorkbooks(full));
+    else if (entry.name.endsWith(".mp.html") || entry.name.endsWith(".mp")) out.push(full);
+  }
+  return out;
+}
+function openBrowser(url) {
+  const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
+  try {
+    spawn(cmd, [url], { shell: process.platform === "win32", stdio: "ignore", detached: true }).unref();
+  } catch {
+  }
+}
+function runDevCommand(args2) {
+  const positional = args2.filter((a) => !a.startsWith("--"));
+  const portFlag = args2.find((a) => a.startsWith("--port="));
+  const noOpen = args2.includes("--no-open");
+  const target = positional[0] ?? ".";
+  const targetPath = resolve2(target);
+  const isFile = existsSync2(targetPath) && statSync(targetPath).isFile();
+  const rootDir = isFile ? resolve2(targetPath, "..") : targetPath;
+  const entryPath = isFile ? "/" + relative(rootDir, targetPath) : "/";
+  if (!existsSync2(rootDir)) {
+    console.error(`No such directory: ${rootDir}`);
+    process.exit(1);
+  }
+  const port = portFlag ? Number(portFlag.split("=")[1]) : 4321;
+  const useColor = process.stdout.isTTY;
+  const reloadClients = [];
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    if (url.pathname === "/__mere-dev-reload") {
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive"
+      });
+      res.write("\n");
+      reloadClients.push(res);
+      req.on("close", () => {
+        const i = reloadClients.indexOf(res);
+        if (i !== -1) reloadClients.splice(i, 1);
+      });
+      return;
+    }
+    let pathname = url.pathname;
+    if (pathname.endsWith("/")) pathname += "index.html";
+    const filePath = join(rootDir, pathname);
+    if (!existsSync2(filePath) || !statSync(filePath).isFile()) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("404 Not Found");
+      return;
+    }
+    const ext = extname2(filePath) === ".mp" ? ".html" : extname2(filePath);
+    const contentType = MIME[ext] ?? "application/octet-stream";
+    if (contentType.startsWith("text/html")) {
+      const html = readFileSync4(filePath, "utf8");
+      const injected = html.includes("</body>") ? html.replace("</body>", `${RELOAD_SCRIPT}</body>`) : html + RELOAD_SCRIPT;
+      res.writeHead(200, { "Content-Type": contentType });
+      res.end(injected);
+      return;
+    }
+    res.writeHead(200, { "Content-Type": contentType });
+    createReadStream(filePath).pipe(res);
+  });
+  server.listen(port, () => {
+    console.log(`
+Mere dev server \u2192 http://localhost:${port}${entryPath}`);
+    console.log(`Serving ${rootDir}
+`);
+    runCheck(rootDir, useColor);
+    if (!noOpen) openBrowser(`http://localhost:${port}${entryPath}`);
+    try {
+      watch(rootDir, { recursive: true }, (_event, filename) => {
+        if (!filename || !filename.endsWith(".mp.html") && !filename.endsWith(".mp")) return;
+        console.log(`
+changed: ${filename}`);
+        runCheck(rootDir, useColor);
+        for (const client of reloadClients) client.write("data: reload\n\n");
+      });
+    } catch {
+      console.log("(file watching unavailable on this platform \u2014 reload manually after edits)");
+    }
+  });
+}
+
+// src/cli/diff.ts
+import { readFileSync as readFileSync5 } from "fs";
+import { parse as parse3 } from "node-html-parser";
+function normalise(s) {
+  return s.replace(/\s+/g, " ").trim();
+}
+function extract(filePath) {
+  const empty = {
+    valid: false,
+    theme: null,
+    layout: null,
+    screens: /* @__PURE__ */ new Map(),
+    state: /* @__PURE__ */ new Map(),
+    computed: /* @__PURE__ */ new Map(),
+    actions: /* @__PURE__ */ new Map()
+  };
+  let source;
+  try {
+    source = readFileSync5(filePath, "utf8");
+  } catch {
+    return empty;
+  }
+  const root = parse3(source, { comment: false });
+  const workbook = root.querySelector("workbook");
+  if (!workbook) return empty;
+  const shape = {
+    valid: true,
+    theme: workbook.getAttribute("theme") ?? null,
+    layout: workbook.getAttribute("layout") ?? null,
+    screens: /* @__PURE__ */ new Map(),
+    state: /* @__PURE__ */ new Map(),
+    computed: /* @__PURE__ */ new Map(),
+    actions: /* @__PURE__ */ new Map()
+  };
+  for (const s of workbook.querySelectorAll("screen")) {
+    const name = s.getAttribute("name");
+    if (name) shape.screens.set(name, normalise(s.innerHTML));
+  }
+  for (const v of workbook.querySelectorAll("state > value")) {
+    const name = v.getAttribute("name");
+    if (!name) continue;
+    const type = v.getAttribute("type") ?? "";
+    const def = v.getAttribute("value") ?? "";
+    const persist = v.hasAttribute("persist") ? "persist" : "";
+    shape.state.set(name, [type, def, persist].join("|"));
+  }
+  for (const c of workbook.querySelectorAll("computed > value")) {
+    const name = c.getAttribute("name");
+    if (!name) continue;
+    const parts = ["op", "from", "field", "by", "window"].map((a) => c.getAttribute(a) ?? "");
+    shape.computed.set(name, parts.join("|"));
+  }
+  for (const a of workbook.querySelectorAll("actions > action")) {
+    const name = a.getAttribute("name");
+    if (name) shape.actions.set(name, normalise(a.textContent));
+  }
+  return shape;
+}
+function diffMap(label, a, b, lines) {
+  const names = /* @__PURE__ */ new Set([...a.keys(), ...b.keys()]);
+  for (const name of [...names].sort()) {
+    const inA = a.has(name);
+    const inB = b.has(name);
+    if (inA && !inB) lines.push(`- ${label}: ${name}`);
+    else if (!inA && inB) lines.push(`+ ${label}: ${name}`);
+    else if (a.get(name) !== b.get(name)) lines.push(`~ ${label}: ${name}`);
+  }
+}
+function diffFiles(fileA, fileB) {
+  const a = extract(fileA);
+  const b = extract(fileB);
+  const lines = [];
+  if (!a.valid || !b.valid) {
+    if (!a.valid) lines.push(`\u2718 ${fileA} \u2014 no <workbook> root, cannot diff`);
+    if (!b.valid) lines.push(`\u2718 ${fileB} \u2014 no <workbook> root, cannot diff`);
+    return { lines, changed: true };
+  }
+  if (a.theme !== b.theme) lines.push(`~ theme: ${a.theme ?? "(none)"} \u2192 ${b.theme ?? "(none)"}`);
+  if (a.layout !== b.layout) lines.push(`~ layout: ${a.layout ?? "mobile"} \u2192 ${b.layout ?? "mobile"}`);
+  diffMap("screen", a.screens, b.screens, lines);
+  diffMap("state", a.state, b.state, lines);
+  diffMap("computed", a.computed, b.computed, lines);
+  diffMap("action", a.actions, b.actions, lines);
+  return { lines, changed: lines.length > 0 };
+}
+function runDiffCommand(args2) {
+  const files = args2.filter((a) => !a.startsWith("--"));
+  if (files.length !== 2) {
+    console.error("Usage: mere diff <old.mp.html> <new.mp.html>");
+    process.exit(1);
+  }
+  const { lines, changed } = diffFiles(files[0], files[1]);
+  if (!changed) {
+    console.log(`\u2713 ${files[0]} and ${files[1]} are structurally identical`);
+    process.exit(0);
+  }
+  console.log(`${files[0]} \u2192 ${files[1]}
+`);
+  for (const line of lines) console.log(line);
+  process.exit(1);
+}
+
+// src/cli/validate.ts
+import { readFileSync as readFileSync6, mkdtempSync, writeFileSync as writeFileSync2, rmSync } from "fs";
+import { join as join2 } from "path";
+import { tmpdir } from "os";
+import { parse as parse4 } from "node-html-parser";
+function extractEmbeddedSource(packedFile) {
+  const html = readFileSync6(packedFile, "utf8");
+  const root = parse4(html, { comment: false });
+  const tag = root.querySelector("#mere-original-source") ?? root.querySelector('script[type="application/mere-source"]');
+  if (!tag) return null;
+  try {
+    return Buffer.from(tag.textContent.trim(), "base64").toString("utf8");
+  } catch {
+    return null;
+  }
+}
+function runValidateCommand(args2) {
+  const files = args2.filter((a) => !a.startsWith("--"));
+  if (files.length !== 1) {
+    console.error("Usage: mere validate <packed.mp.html>");
+    console.error("(only local files are supported today \u2014 no URL fetch yet)");
+    process.exit(1);
+  }
+  const packedFile = files[0];
+  const useColor = process.stdout.isTTY;
+  const originalSource = extractEmbeddedSource(packedFile);
+  if (originalSource === null) {
+    console.error(`\u2718 ${packedFile} \u2014 no embedded source found (was this packed with "mere pack"?)`);
+    process.exit(1);
+  }
+  const tmpDir = mkdtempSync(join2(tmpdir(), "mere-validate-"));
+  const tmpFile = join2(tmpDir, "original.mp.html");
+  writeFileSync2(tmpFile, originalSource, "utf8");
+  try {
+    const diags = checkFile(tmpFile);
+    const errors = diags.filter((d) => d.severity === "error");
+    if (errors.length > 0) {
+      console.log(`\u2718 embedded source fails mere check (${errors.length} error(s)):
+`);
+      for (const d of errors) console.log(formatDiagnostic(d, useColor));
+      process.exit(1);
+    }
+    const { lines, changed } = diffFiles(tmpFile, packedFile);
+    if (!changed) {
+      console.log(`\u2713 ${packedFile} \u2014 matches its embedded source, no drift detected`);
+      process.exit(0);
+    }
+    console.log(`\u2718 ${packedFile} \u2014 workbook content has drifted from its embedded source:
+`);
+    for (const line of lines) console.log(line);
+    console.log(`
+This proves the artifact changed since it was packed \u2014 not who changed it.`);
+    process.exit(1);
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 // src/cli/index.ts
 var args = process.argv.slice(2);
 var command = args[0];
@@ -872,6 +1157,9 @@ var HELP = `
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
   mere inspect <file.mp>  Report screens, state, elements, theme, layout \u2014 the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
+  mere dev [path]         Serve workbooks locally with check-on-save and live reload.
+  mere diff <a> <b>       Structural diff between two workbook versions \u2014 screens/state/computed/actions.
+  mere validate <packed>  Confirm a packed file's workbook body still matches its embedded source.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
   mere help               Show this help.
@@ -880,6 +1168,10 @@ var HELP = `
   --out <path>            Output path (default: <name>.packed.mp.html)
   --runtime <path>        Path to mere-runtime.js (default: auto-detected)
   --skip-check            Skip mere check before packing
+
+\x1B[1mmere dev options:\x1B[0m
+  --port=<n>               Port to serve on (default: 4321)
+  --no-open                Don't open the default browser automatically
 
 \x1B[1mDiagnostic codes:\x1B[0m
   MPD-001  structural        Workbook root element missing or invalid
@@ -936,6 +1228,18 @@ switch (command) {
   case "pack": {
     runPackCommand(args.slice(1));
     process.exit(0);
+  }
+  case "dev": {
+    runDevCommand(args.slice(1));
+    break;
+  }
+  case "diff": {
+    runDiffCommand(args.slice(1));
+    break;
+  }
+  case "validate": {
+    runValidateCommand(args.slice(1));
+    break;
   }
   case "schema": {
     const asJson = args.includes("--json");

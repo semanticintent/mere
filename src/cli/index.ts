@@ -3,6 +3,9 @@ import { checkFile } from './check.js';
 import { printSchema } from './schema.js';
 import { runPackCommand } from './pack.js';
 import { runInspectCommand } from './inspect.js';
+import { runDevCommand } from './dev.js';
+import { runDiffCommand } from './diff.js';
+import { runValidateCommand } from './validate.js';
 import { formatDiagnostic, formatSummary } from './diagnostics.js';
 
 // ─── CLI entry point ──────────────────────────────────────────────────────────
@@ -18,6 +21,9 @@ const HELP = `
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
   mere inspect <file.mp>  Report screens, state, elements, theme, layout — the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
+  mere dev [path]         Serve workbooks locally with check-on-save and live reload.
+  mere diff <a> <b>       Structural diff between two workbook versions — screens/state/computed/actions.
+  mere validate <packed>  Confirm a packed file's workbook body still matches its embedded source.
   mere schema             Print the element registry as a table.
   mere schema --json      Print the element registry as JSON.
   mere help               Show this help.
@@ -26,6 +32,10 @@ const HELP = `
   --out <path>            Output path (default: <name>.packed.mp.html)
   --runtime <path>        Path to mere-runtime.js (default: auto-detected)
   --skip-check            Skip mere check before packing
+
+\x1b[1mmere dev options:\x1b[0m
+  --port=<n>               Port to serve on (default: 4321)
+  --no-open                Don't open the default browser automatically
 
 \x1b[1mDiagnostic codes:\x1b[0m
   MPD-001  structural        Workbook root element missing or invalid
@@ -90,6 +100,21 @@ switch (command) {
   case 'pack': {
     runPackCommand(args.slice(1));
     process.exit(0);
+  }
+
+  case 'dev': {
+    runDevCommand(args.slice(1));
+    break; // long-running — do not process.exit()
+  }
+
+  case 'diff': {
+    runDiffCommand(args.slice(1));
+    break;
+  }
+
+  case 'validate': {
+    runValidateCommand(args.slice(1));
+    break;
   }
 
   case 'schema': {

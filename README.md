@@ -83,6 +83,10 @@ npm install -g @semanticintent/mere-cli
 ```sh
 mere check tasks.mp.html     # validate — exit 0/1/2
 mere check *.mp.html          # validate multiple, summary line
+mere pack tasks.mp.html        # inline the runtime — self-contained .packed.mp.html
+mere dev tasks.mp.html         # local server — check-on-save, live reload
+mere diff old.mp.html new.mp.html   # structural diff — screens/state/computed/actions
+mere validate tasks.packed.mp.html  # confirm a packed file matches its embedded source
 mere schema                   # print element registry
 mere schema --json            # machine-readable JSON
 ```

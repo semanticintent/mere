@@ -89,6 +89,14 @@ export function packFile(
     }
   }
 
+  // 4b. Embed the pre-pack source (base64) so `mere validate` can later prove
+  // the packed workbook body still matches what was originally packed.
+  const sourceB64 = Buffer.from(source, 'utf8').toString('base64')
+  const provenanceTag = `<script type="application/mere-source" id="mere-original-source">${sourceB64}</script>`
+  packed = packed.includes('</body>')
+    ? packed.replace('</body>', `${provenanceTag}\n</body>`)
+    : packed + '\n' + provenanceTag
+
   // 5. Write output
   const outputPath = opts.out ?? defaultOutputPath(inputPath)
   writeFileSync(outputPath, packed, 'utf8')
