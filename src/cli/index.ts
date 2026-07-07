@@ -15,7 +15,7 @@ const command = args[0];
 
 const HELP = `
 \x1b[1mMere\x1b[0m — a workbook format for apps
-\x1b[2mVersion 0.1.0\x1b[0m
+\x1b[2mVersion 0.2.0\x1b[0m
 
 \x1b[1mUsage:\x1b[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.

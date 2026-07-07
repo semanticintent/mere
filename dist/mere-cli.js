@@ -1151,7 +1151,7 @@ var args = process.argv.slice(2);
 var command = args[0];
 var HELP = `
 \x1B[1mMere\x1B[0m \u2014 a workbook format for apps
-\x1B[2mVersion 0.1.0\x1B[0m
+\x1B[2mVersion 0.2.0\x1B[0m
 
 \x1B[1mUsage:\x1B[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
