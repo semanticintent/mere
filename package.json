@@ -1,11 +1,23 @@
 {
-  "name": "mere",
+  "name": "@semanticintent/mere-cli",
   "version": "0.1.0",
   "description": "A workbook format for apps. The file is the app.",
   "type": "module",
   "bin": {
     "mere": "./dist/mere-cli.js"
   },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/semanticintent/mere.git"
+  },
+  "homepage": "https://docs.mere.fyi",
+  "bugs": {
+    "url": "https://github.com/semanticintent/mere/issues"
+  },
+  "license": "MIT",
   "scripts": {
     "build": "node build.js",
     "watch": "node build.js --watch",
