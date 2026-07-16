@@ -433,6 +433,52 @@
   color: var(--mp-text);
 }
 
+/* ── Camera ─────────────────────────────────────────────────────────────────── */
+
+.mp-camera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-sm);
+}
+
+.mp-camera__button {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse);
+  background: var(--mp-accent);
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer;
+  transition: background var(--mp-transition);
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+
+.mp-camera__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mp-camera__preview {
+  width: 100%;
+  border-radius: var(--mp-radius-sm);
+  box-shadow: var(--mp-shadow-sm);
+}
+
+.mp-camera__timestamp {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-tertiary);
+}
+
 /* ── Modal ──────────────────────────────────────────────────────────────────── */
 
 .mp-modal {

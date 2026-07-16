@@ -189,6 +189,13 @@ export const REGISTRY: ElementMeta[] = [
     attrs: [],
     container: false,
   },
+  {
+    tag: 'camera',
+    description: 'Photo capture. Opens the device camera via the OS picker (no live preview stream). Binds two-way to a map state value via ~ — writes { dataUrl, capturedAt }. facing=user|environment hints front vs back camera.',
+    sigils: ['~', '?'],
+    attrs: ['facing', 'name'],
+    container: false,
+  },
 
   // ── Data display ──────────────────────────────────────────────────────────
   {

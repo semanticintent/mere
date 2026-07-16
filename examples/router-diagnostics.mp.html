@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Router Diagnostics — Mere</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body style="margin:0">
+
+<workbook theme="classic-light">
+
+  <state>
+    <value name="front-photo" type="map"/>
+    <value name="back-panel-photo" type="map"/>
+    <value name="cables-photo" type="map"/>
+  </state>
+
+  <screen name="capture" ?"guided multi-angle photo capture for troubleshooting a router — front, back panel, cables">
+
+    <header>
+      <heading>Router Diagnostics</heading>
+      <subtitle>Capture three angles to share for troubleshooting</subtitle>
+    </header>
+
+    <card>
+      <heading>1. Front (brand / model / lights)</heading>
+      <camera ~front-photo facing="environment">Take Photo</camera>
+    </card>
+
+    <card>
+      <heading>2. Back panel (ports)</heading>
+      <camera ~back-panel-photo facing="environment">Take Photo</camera>
+    </card>
+
+    <card>
+      <heading>3. Cables (what's plugged in where)</heading>
+      <camera ~cables-photo facing="environment">Take Photo</camera>
+    </card>
+
+  </screen>
+
+</workbook>
+
+</body>
+</html>

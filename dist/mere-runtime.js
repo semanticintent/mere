@@ -215,7 +215,9 @@ var Mere = (() => {
     "by",
     // chart
     "from",
-    "where"
+    "where",
+    // camera
+    "facing"
   ]);
   function parseBindings(el) {
     const binding = {};
@@ -986,6 +988,53 @@ var Mere = (() => {
     label.appendChild(textSpan);
     return label;
   };
+  var camera = (node, store, context, onGoTo) => {
+    const wrapper = div("camera");
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.setAttribute("capture", node.attrs["facing"] === "user" ? "user" : "environment");
+    input.classList.add("mp-camera__input");
+    const button2 = document.createElement("label");
+    button2.classList.add("mp-camera__button");
+    button2.textContent = node.text || "Take Photo";
+    button2.appendChild(input);
+    const preview = document.createElement("img");
+    preview.classList.add("mp-camera__preview");
+    preview.hidden = true;
+    preview.alt = "";
+    const timestamp2 = span("camera__timestamp");
+    if (node.bindings.twoWay) {
+      const stateName = node.bindings.twoWay;
+      const sync = () => {
+        const val = store.get(stateName, context);
+        if (val?.dataUrl) {
+          preview.src = val.dataUrl;
+          preview.hidden = false;
+          timestamp2.textContent = val.capturedAt ? formatRelative(new Date(val.capturedAt)) : "";
+        } else {
+          preview.hidden = true;
+          preview.removeAttribute("src");
+          timestamp2.textContent = "";
+        }
+      };
+      sync();
+      store.subscribe(stateName, sync);
+      input.addEventListener("change", () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          store.set(stateName, { dataUrl: reader.result, capturedAt: (/* @__PURE__ */ new Date()).toISOString() });
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    wrapper.appendChild(button2);
+    wrapper.appendChild(preview);
+    wrapper.appendChild(timestamp2);
+    return wrapper;
+  };
   var sidebar = (node, store, context, onGoTo, rc) => {
     const el = document.createElement("nav");
     el.classList.add("mp-sidebar");
@@ -1476,6 +1525,7 @@ var Mere = (() => {
     "field": field,
     "button": button,
     "toggle": toggle,
+    "camera": camera,
     "modal": modal,
     "toast": toast,
     "banner": banner,
@@ -2052,6 +2102,52 @@ var Mere = (() => {
 .mp-toggle__label {
   font-size: var(--mp-text-base);
   color: var(--mp-text);
+}
+
+/* \u2500\u2500 Camera \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-camera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-sm);
+}
+
+.mp-camera__button {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse);
+  background: var(--mp-accent);
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer;
+  transition: background var(--mp-transition);
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+
+.mp-camera__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mp-camera__preview {
+  width: 100%;
+  border-radius: var(--mp-radius-sm);
+  box-shadow: var(--mp-shadow-sm);
+}
+
+.mp-camera__timestamp {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-tertiary);
 }
 
 /* \u2500\u2500 Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
@@ -2717,6 +2813,18 @@ var Mere = (() => {
 .mp-toggle__input:checked + .mp-toggle__track::after { transform: translateX(18px); }
 .mp-toggle__label { font-size: var(--mp-text-base); color: var(--mp-text); }
 
+.mp-camera { display: flex; flex-direction: column; gap: var(--mp-space-sm); }
+.mp-camera__button {
+  font-family: var(--mp-font); font-size: var(--mp-text-base); font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse); background: var(--mp-accent); border-radius: var(--mp-radius-sm);
+  padding: 10px var(--mp-space-lg); cursor: pointer; width: 100%; min-height: 42px;
+  transition: background var(--mp-transition); display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+.mp-camera__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-camera__preview { width: 100%; border-radius: var(--mp-radius-sm); }
+.mp-camera__timestamp { font-size: var(--mp-text-sm); color: var(--mp-text-tertiary); }
+
 .mp-modal { position: fixed; inset: 0; background: rgba(28,27,35,.5); display: flex; align-items: flex-end; z-index: 100; }
 .mp-modal > * { width: 100%; max-height: 80dvh; background: var(--mp-bg); border-radius: var(--mp-radius-lg) var(--mp-radius-lg) 0 0; padding: var(--mp-space-xl); overflow-y: auto; }
 .mp-toast { position: fixed; bottom: calc(80px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translateX(-50%); background: var(--mp-text); color: var(--mp-text-inverse); font-size: var(--mp-text-sm); padding: var(--mp-space-sm) var(--mp-space-lg); border-radius: var(--mp-radius); box-shadow: var(--mp-shadow); z-index: 200; white-space: nowrap; }
@@ -3347,6 +3455,18 @@ var Mere = (() => {
 .mp-toggle__input:checked + .mp-toggle__track { background: #000; }
 .mp-toggle__input:checked + .mp-toggle__track::after { transform: translateX(18px); background: #fff; }
 .mp-toggle__label { font-size: var(--mp-text-base); font-weight: 900; color: #000; text-transform: uppercase; }
+
+.mp-camera { display: flex; flex-direction: column; gap: var(--mp-space-sm); }
+.mp-camera__button {
+  font-family: var(--mp-font); font-size: var(--mp-text-base); font-weight: 900;
+  color: #fff; background: #000; border: 3px solid #000;
+  padding: var(--mp-space-sm) var(--mp-space-lg); cursor: pointer; width: 100%; min-height: 44px;
+  text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.mp-camera__button:hover { background: var(--mp-accent); border-color: var(--mp-accent); }
+.mp-camera__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-camera__preview { width: 100%; border: 3px solid #000; }
+.mp-camera__timestamp { font-size: var(--mp-text-sm); font-weight: 700; color: #000; }
 
 .mp-modal { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: flex; align-items: flex-end; z-index: 100; }
 .mp-modal > * { width: 100%; max-height: 80dvh; background: #fff; border-top: 4px solid #000; padding: var(--mp-space-xl); overflow-y: auto; }

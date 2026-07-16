@@ -335,6 +335,67 @@ const toggle: RenderFn = (node, store, context, onGoTo) => {
   return label;
 };
 
+// ─── camera ───────────────────────────────────────────────────────────────────
+// Single-shot capture via the native OS camera picker (<input type="file" capture>),
+// not a live getUserMedia stream — no permission prompt beyond the file picker itself,
+// no preview canvas to maintain, no wake-lock/backgrounding concerns.
+
+const camera: RenderFn = (node, store, context, onGoTo) => {
+  const wrapper = div('camera');
+
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.setAttribute('capture', node.attrs['facing'] === 'user' ? 'user' : 'environment');
+  input.classList.add('mp-camera__input');
+
+  const button = document.createElement('label');
+  button.classList.add('mp-camera__button');
+  button.textContent = node.text || 'Take Photo';
+  button.appendChild(input);
+
+  const preview = document.createElement('img');
+  preview.classList.add('mp-camera__preview');
+  preview.hidden = true;
+  preview.alt = '';
+
+  const timestamp = span('camera__timestamp');
+
+  if (node.bindings.twoWay) {
+    const stateName = node.bindings.twoWay;
+
+    const sync = () => {
+      const val = store.get(stateName, context) as { dataUrl?: string; capturedAt?: string } | null | undefined;
+      if (val?.dataUrl) {
+        preview.src = val.dataUrl;
+        preview.hidden = false;
+        timestamp.textContent = val.capturedAt ? formatRelative(new Date(val.capturedAt)) : '';
+      } else {
+        preview.hidden = true;
+        preview.removeAttribute('src');
+        timestamp.textContent = '';
+      }
+    };
+    sync();
+    store.subscribe(stateName, sync);
+
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        store.set(stateName, { dataUrl: reader.result, capturedAt: new Date().toISOString() });
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  wrapper.appendChild(button);
+  wrapper.appendChild(preview);
+  wrapper.appendChild(timestamp);
+  return wrapper;
+};
+
 // ─── sidebar ──────────────────────────────────────────────────────────────────
 
 const sidebar: RenderFn = (node, store, context, onGoTo, rc) => {
@@ -884,6 +945,7 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'field': field,
   'button': button,
   'toggle': toggle,
+  'camera': camera,
   'modal': modal,
   'toast': toast,
   'banner': banner,

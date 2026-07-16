@@ -9,7 +9,7 @@ Open it — it runs. Send it — it travels. No server, no account, no build ste
 [![npm](https://img.shields.io/npm/v/%40semanticintent%2Fmere-cli)](https://www.npmjs.com/package/@semanticintent/mere-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-→ **[mere.semanticintent.dev](https://mere.semanticintent.dev)**
+→ **[docs.mere.fyi](https://docs.mere.fyi)**
 
 ---
 
@@ -64,9 +64,9 @@ Save as `tasks.mp.html`. Double-click. It runs.
 
 ---
 
-## 26 elements. No HTML passthrough.
+## 39 elements. No HTML passthrough.
 
-`screen` `header` `footer` `form` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `modal` `toast` `banner`
+`screen` `header` `footer` `form` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `camera` `kv` `chart` `modal` `toast` `banner` `sidebar` `sidebar-brand` `sidebar-section` `data-table` `column` `search-bar` `spreadsheet` `metric` `metric-group` `bar`
 
 Every element has a specific role. The vocabulary is closed by design — bounded enough for AI to generate reliably, expressive enough for real apps.
 
@@ -125,7 +125,7 @@ The file runs anywhere HTML runs. Forever. No framework lock-in.
 
 ## Examples
 
-See [`examples/`](examples/) for ready-to-open workbooks. Full live examples at [mere.semanticintent.dev/examples](https://mere.semanticintent.dev/examples.html).
+See [`examples/`](examples/) for ready-to-open workbooks. Full live examples at [docs.mere.fyi/examples](https://docs.mere.fyi/examples.html).
 
 ---
 

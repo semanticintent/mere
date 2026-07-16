@@ -176,6 +176,13 @@ var REGISTRY = [
     attrs: [],
     container: false
   },
+  {
+    tag: "camera",
+    description: "Photo capture. Opens the device camera via the OS picker (no live preview stream). Binds two-way to a map state value via ~ \u2014 writes { dataUrl, capturedAt }. facing=user|environment hints front vs back camera.",
+    sigils: ["~", "?"],
+    attrs: ["facing", "name"],
+    container: false
+  },
   // ── Data display ──────────────────────────────────────────────────────────
   {
     tag: "kv",

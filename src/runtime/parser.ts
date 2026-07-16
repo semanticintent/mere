@@ -225,6 +225,8 @@ const PASSTHROUGH_ATTRS = new Set([
   'editable', 'format', 'by',
   // chart
   'from', 'where',
+  // camera
+  'facing',
 ]);
 
 function parseBindings(el: Element): Binding {
