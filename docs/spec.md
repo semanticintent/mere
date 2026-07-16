@@ -249,6 +249,7 @@ Declared on `<workbook theme="...">`. Built-in themes:
 | `ecommerce-hero` | Bold, high-contrast, confident, urgent |
 | `notion-paper` | Soft shadows, editorial spacing, paper-white surfaces |
 | `brutalist` | Hard edges, heavy type, no shadows, aggressive contrast |
+| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius — brutalist's warmer sibling |
 
 Themes define colors, typography, spacing, radii, shadows, and motion. Themes cannot change structure. A card is always a card; only its visual expression changes.
 
@@ -318,7 +319,8 @@ BINDINGS:
 
 THEMES:
   classic-light, proton-mail, corporate-light,
-  ecommerce-hero, notion-paper, brutalist
+  ecommerce-hero, notion-paper, brutalist,
+  warm-brutalist
 
 FILE:      .mp  (Mere Package — HTML document with <workbook> element)
 RUNTIME:   mere-runtime.js  (single file, target <50KB gzipped)

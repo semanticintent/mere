@@ -6,12 +6,14 @@ import type { ASTNode } from './types.js';
 import classicLight from '../themes/classic-light.css';
 import protonMail from '../themes/proton-mail.css';
 import brutalist from '../themes/brutalist.css';
+import warmBrutalist from '../themes/warm-brutalist.css';
 
 // Theme registry — injected as inlined CSS strings
 const THEMES: Record<string, string> = {
-  'classic-light': classicLight,
-  'proton-mail':   protonMail,
-  'brutalist':     brutalist,
+  'classic-light':  classicLight,
+  'proton-mail':    protonMail,
+  'brutalist':      brutalist,
+  'warm-brutalist': warmBrutalist,
 };
 
 // ─── Bootstrap ────────────────────────────────────────────────────────────────

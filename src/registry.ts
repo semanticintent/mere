@@ -237,6 +237,80 @@ export const REGISTRY: ElementMeta[] = [
     attrs: [],
     container: true,
   },
+
+  // ── Full / dashboard layout ─────────────────────────────────────────────────
+  {
+    tag: 'sidebar',
+    description: 'Left navigation rail for layout="full". Container for sidebar-brand and sidebar-section.',
+    sigils: ['?'],
+    attrs: [],
+    container: true,
+  },
+  {
+    tag: 'sidebar-brand',
+    description: 'Sidebar header/logo text.',
+    sigils: ['?'],
+    attrs: [],
+    container: false,
+  },
+  {
+    tag: 'sidebar-section',
+    description: 'Grouped sidebar nav items under an optional label=.',
+    sigils: ['?'],
+    attrs: ['label'],
+    container: true,
+  },
+  {
+    tag: 'data-table',
+    description: 'Table from a list state via @. column children define fields; as=status-badge|name-url|contact|currency|product sets a special cell renderer. Optional ! binds a row-click action.',
+    sigils: ['@', '!', '?'],
+    attrs: [],
+    container: true,
+  },
+  {
+    tag: 'column',
+    description: 'Column definition inside data-table or spreadsheet. Declarative only — not rendered directly.',
+    sigils: ['?'],
+    attrs: ['field', 'label', 'as', 'by', 'editable'],
+    container: false,
+  },
+  {
+    tag: 'search-bar',
+    description: 'Text filter input with a search icon. Binds two-way via ~.',
+    sigils: ['~', '?'],
+    attrs: [],
+    container: false,
+  },
+  {
+    tag: 'spreadsheet',
+    description: 'Editable grid from a list state via @. column children define fields; editable on a column allows inline edits.',
+    sigils: ['@', '?'],
+    attrs: [],
+    container: true,
+  },
+
+  // ── Metrics ────────────────────────────────────────────────────────────────
+  {
+    tag: 'metric',
+    description: 'Single KPI value with label. format=currency|percent for numeric formatting.',
+    sigils: ['@', '?'],
+    attrs: ['format'],
+    container: false,
+  },
+  {
+    tag: 'metric-group',
+    description: 'Layout container for multiple metric cards.',
+    sigils: ['?'],
+    attrs: [],
+    container: true,
+  },
+  {
+    tag: 'bar',
+    description: 'Horizontal progress/comparison bar. label= sets the caption, @ binds a 0-100 value.',
+    sigils: ['@', '?'],
+    attrs: ['label'],
+    container: false,
+  },
 ];
 
 export const REGISTRY_MAP = new Map(REGISTRY.map(e => [e.tag, e]));
@@ -248,4 +322,5 @@ export const KNOWN_THEMES = [
   'ecommerce-hero',
   'notion-paper',
   'brutalist',
+  'warm-brutalist',
 ] as const;

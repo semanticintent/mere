@@ -93,13 +93,14 @@ mere schema --json            # machine-readable JSON
 
 ---
 
-## Three themes
+## Four themes
 
 | Theme | Character |
 |-------|-----------|
 | `classic-light` | Neutral baseline. Clean cards, comfortable spacing. Default. |
 | `proton-mail` | Purple accent, underline tabs, 14px base type. |
 | `brutalist` | Zero radius, 3px black borders, inverted header, red accent. |
+| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius. Bold structure without the cold palette — brutalist's warmer sibling. |
 
 ---
 

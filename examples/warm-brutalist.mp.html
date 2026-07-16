@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Warm Brutalist — Mere</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body style="margin:0">
+
+<workbook theme="warm-brutalist">
+
+  <state>
+    <value name="tasks-done" type="number" default="3"></value>
+    <value name="new-note" type="text" default=""></value>
+    <value name="notify" type="boolean" default="true"></value>
+    <value name="tab" type="text" default="overview"></value>
+    <value name="expenses" type="record-list" default='[{"category":"Software","amount":420,"status":"approved"},{"category":"Travel","amount":850,"status":"pending"},{"category":"Office","amount":120,"status":"terminated"}]'>
+      <field name="category" type="text"></field>
+      <field name="amount" type="number" default="0"></field>
+      <field name="status" type="text" default="pending"></field>
+    </value>
+  </state>
+
+  <computed>
+    <value name="total-spend" from="expenses" op="sum" field="amount"></value>
+  </computed>
+
+  <screen name="preview" ?"theme showcase — tabs, metrics, key-value rows, a progress bar, a banner, and a data table with status badges">
+
+    <header>
+      <heading>Warm Brutalist</heading>
+      <badge @tasks-done></badge>
+    </header>
+
+    <tab-bar ~tab>
+      <tab "overview">Overview</tab>
+      <tab "form">Form</tab>
+    </tab-bar>
+
+    <card>
+      <heading>Card + type scale</heading>
+      <subtitle>Parchment surface, ink text, restrained indigo accent</subtitle>
+      <paragraph>This is a paragraph on the warm-brutalist theme — parchment background, ink text, a single accent color used sparingly, borrowed from shatny.dev's warm-brutalism design language.</paragraph>
+    </card>
+
+    <metric-group>
+      <metric @total-spend format="currency">Total spend</metric>
+      <metric @tasks-done>Tasks done</metric>
+    </metric-group>
+
+    <card>
+      <heading>Key/value + bar</heading>
+      <kv label="Status" @notify></kv>
+      <kv label="Theme">warm-brutalist</kv>
+      <bar label="Budget used" @tasks-done></bar>
+    </card>
+
+    <banner>Restraint makes the accent mean something — used only where it counts.</banner>
+
+    <card>
+      <heading>Expenses (data-table + status-badge)</heading>
+      <data-table @expenses>
+        <column field="category" label="Category"></column>
+        <column field="amount" label="Amount" as="currency"></column>
+        <column field="status" label="Status" as="status-badge"></column>
+      </data-table>
+    </card>
+
+    <card>
+      <heading>Form elements</heading>
+      <field ~new-note placeholder="Type a note…"></field>
+      <button>Primary action</button>
+      <toggle ~notify>Notifications</toggle>
+    </card>
+
+  </screen>
+
+</workbook>
+
+</body>
+</html>
