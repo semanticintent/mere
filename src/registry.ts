@@ -42,6 +42,13 @@ export const REGISTRY: ElementMeta[] = [
     attrs: [],
     container: true,
   },
+  {
+    tag: 'toolbar',
+    description: 'Flex row wrapper for a search-bar plus inline actions, with padding and gap.',
+    sigils: ['?'],
+    attrs: [],
+    container: true,
+  },
 
   // ── Text ───────────────────────────────────────────────────────────────────
   {

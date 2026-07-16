@@ -939,6 +939,11 @@ var Mere = (() => {
     rc(el, node, store, context, onGoTo);
     return el;
   };
+  var toolbar = (node, store, context, onGoTo, rc) => {
+    const el = div("toolbar");
+    rc(el, node, store, context, onGoTo);
+    return el;
+  };
   var field = (node, store, context, onGoTo) => {
     const wrapper = div("field");
     const input = document.createElement("input");
@@ -1522,6 +1527,7 @@ var Mere = (() => {
     "message-card": makeCard("message-card"),
     "card": makeCard("card"),
     "form": form,
+    "toolbar": toolbar,
     "field": field,
     "button": button,
     "toggle": toggle,

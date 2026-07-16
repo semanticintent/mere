@@ -271,6 +271,14 @@ const form: RenderFn = (node, store, context, onGoTo, rc) => {
   return el;
 };
 
+// ─── toolbar ──────────────────────────────────────────────────────────────────
+
+const toolbar: RenderFn = (node, store, context, onGoTo, rc) => {
+  const el = div('toolbar');
+  rc(el, node, store, context, onGoTo);
+  return el;
+};
+
 // ─── field ────────────────────────────────────────────────────────────────────
 
 const field: RenderFn = (node, store, context, onGoTo) => {
@@ -942,6 +950,7 @@ export const ELEMENTS: Record<string, ElementHandler> = {
   'message-card': makeCard('message-card'),
   'card': makeCard('card'),
   'form': form,
+  'toolbar': toolbar,
   'field': field,
   'button': button,
   'toggle': toggle,
