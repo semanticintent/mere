@@ -5,1323 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Inbox — Mere</title>
   <script>
-/* mere-runtime unknown — packed 2026-04-18 */
-"use strict";
-var Mere = (() => {
-  var __defProp = Object.defineProperty;
-  var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-  var __getOwnPropNames = Object.getOwnPropertyNames;
-  var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __export = (target, all) => {
-    for (var name in all)
-      __defProp(target, name, { get: all[name], enumerable: true });
-  };
-  var __copyProps = (to, from, except, desc) => {
-    if (from && typeof from === "object" || typeof from === "function") {
-      for (let key of __getOwnPropNames(from))
-        if (!__hasOwnProp.call(to, key) && key !== except)
-          __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-    }
-    return to;
-  };
-  var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
-
-  // src/runtime/index.ts
-  var index_exports = {};
-  __export(index_exports, {
-    bootstrap: () => bootstrap
-  });
-
-  // src/runtime/parser.ts
-  function parseWorkbook(el) {
-    const theme = el.getAttribute("theme") ?? "classic-light";
-    const layout = el.getAttribute("layout") ?? "mobile";
-    const state = parseState(el.querySelector(":scope > state"));
-    const computed = parseComputed(el.querySelector(":scope > computed"));
-    const actions = parseActions(el.querySelector(":scope > actions"));
-    const screens = parseScreens(el.querySelectorAll(":scope > screen"));
-    const sidebarEl = el.querySelector(":scope > sidebar");
-    const sidebar2 = sidebarEl ? parseNode(sidebarEl) : void 0;
-    return { theme, layout, state, computed, actions, screens, sidebar: sidebar2 };
-  }
-  function parseState(stateEl) {
-    if (!stateEl) return [];
-    return Array.from(stateEl.querySelectorAll(":scope > value")).map((v) => ({
-      name: req(v, "name"),
-      type: v.getAttribute("type") ?? "text",
-      default: parseDefault(v.getAttribute("value") ?? v.getAttribute("default"), v.getAttribute("type") ?? "text"),
-      persist: v.hasAttribute("persist")
-    }));
-  }
-  function parseDefault(raw, type) {
-    if (raw === null) return void 0;
-    if (type === "number") return Number(raw);
-    if (type === "boolean") return raw === "true";
-    if (type === "list" || type === "map") {
-      try {
-        return JSON.parse(raw);
-      } catch {
-        return type === "list" ? [] : {};
-      }
-    }
-    return raw;
-  }
-  function parseComputed(computedEl) {
-    if (!computedEl) return [];
-    return Array.from(computedEl.querySelectorAll(":scope > value")).map((v) => ({
-      name: req(v, "name"),
-      from: req(v, "from"),
-      where: v.getAttribute("where") ?? void 0,
-      op: v.getAttribute("op") ?? void 0,
-      field: v.getAttribute("field") ?? void 0,
-      by: v.getAttribute("by") ?? void 0
-    }));
-  }
-  function parseActions(actionsEl) {
-    if (!actionsEl) return [];
-    return Array.from(actionsEl.querySelectorAll(":scope > action")).map((a) => {
-      const takesAttr = a.getAttribute("takes") ?? "";
-      const takes = takesAttr.trim() ? takesAttr.trim().split(/\s+/) : [];
-      const text = a.textContent ?? "";
-      const statements = parseActionBody(text.trim());
-      return { name: req(a, "name"), takes, statements };
-    });
-  }
-  function parseActionBody(body) {
-    const stmts = [];
-    for (const rawLine of body.split("\n")) {
-      const line = rawLine.trim();
-      if (!line) continue;
-      const goTo = line.match(/^go-to\s+(\S+)$/);
-      if (goTo) {
-        stmts.push({ kind: "go-to", screen: goTo[1] });
-        continue;
-      }
-      const setMatch = line.match(/^set\s+(\S+)\s+to\s+(.+?)(?:\s+where\s+(.+))?$/);
-      if (setMatch) {
-        stmts.push({
-          kind: "set",
-          target: setMatch[1],
-          value: setMatch[2].trim(),
-          where: setMatch[3]?.trim()
-        });
-        continue;
-      }
-      const clearMatch = line.match(/^clear\s+(\S+)$/);
-      if (clearMatch) {
-        stmts.push({ kind: "clear", target: clearMatch[1] });
-        continue;
-      }
-      const addToMatch = line.match(/^add-to\s+(\S+)\s+(.+)$/);
-      if (addToMatch) {
-        const fields = parseKeyValuePairs(addToMatch[2].trim());
-        stmts.push({ kind: "add-to", list: addToMatch[1], fields });
-        continue;
-      }
-      const removeMatch = line.match(/^remove-from\s+(\S+)\s+where\s+(.+)$/);
-      if (removeMatch) {
-        stmts.push({ kind: "remove-from", list: removeMatch[1], where: removeMatch[2].trim() });
-        continue;
-      }
-    }
-    return stmts;
-  }
-  function parseKeyValuePairs(str) {
-    const pairs = [];
-    const tokens = [];
-    const tokenRe = /"[^"]*"|\S+/g;
-    let m;
-    while ((m = tokenRe.exec(str)) !== null) tokens.push(m[0]);
-    for (let i = 0; i + 1 < tokens.length; i += 2) {
-      pairs.push({ key: tokens[i], value: tokens[i + 1] });
-    }
-    return pairs;
-  }
-  function parseScreens(screenEls) {
-    return Array.from(screenEls).map((s) => {
-      const name = s.getAttribute("name") ?? s.getAttribute("id") ?? "";
-      const intent = extractIntent(s);
-      const root = parseNode(s);
-      root.tag = "screen-root";
-      return { name, intent, root };
-    });
-  }
-  function parseNode(el) {
-    const tag = el.tagName.toLowerCase();
-    const bindings = parseBindings(el);
-    const attrs = parsePassthroughAttrs(el);
-    const directText = Array.from(el.childNodes).filter((n) => n.nodeType === Node.TEXT_NODE).map((n) => n.textContent ?? "").join("").trim();
-    const children = Array.from(el.children).map((child) => parseNode(child));
-    return { tag, bindings, attrs, children, text: directText };
-  }
-  var PASSTHROUGH_ATTRS = /* @__PURE__ */ new Set([
-    "placeholder",
-    "type",
-    "required",
-    "min",
-    "max",
-    "pattern",
-    "autocomplete",
-    "name",
-    "id",
-    "class",
-    "style",
-    // data-table column definitions
-    "field",
-    "label",
-    "as",
-    // spreadsheet / metric / kv / data-table product column
-    "editable",
-    "format",
-    "by"
-  ]);
-  function parseBindings(el) {
-    const binding = {};
-    const attrs = Array.from(el.attributes);
-    let i = 0;
-    while (i < attrs.length) {
-      const attr = attrs[i];
-      const name = attr.name;
-      const value = attr.value;
-      if (name.startsWith("@")) {
-        binding.read = name.slice(1) || value;
-      } else if (name.startsWith("~")) {
-        binding.twoWay = name.slice(1) || value;
-      } else if (name.startsWith("!")) {
-        const actionName = name.slice(1);
-        const args = [];
-        if (value) {
-          const m = value.match(/^(?:with\s+)?(.+)$/);
-          if (m) args.push(...m[1].replace(/,/g, " ").split(/\s+/).filter(Boolean));
-        } else {
-          let j = i + 1;
-          if (j < attrs.length && attrs[j].name === "with") {
-            j++;
-            while (j < attrs.length) {
-              const next = attrs[j];
-              if (next.name.startsWith("@") || next.name.startsWith("~") || next.name.startsWith("!") || next.name.startsWith("?") || PASSTHROUGH_ATTRS.has(next.name)) break;
-              args.push(next.name);
-              j++;
-            }
-            i = j - 1;
-          }
-        }
-        binding.action = { name: actionName, args };
-      } else if (name.startsWith("?")) {
-        binding.intent = value || name.slice(1);
-      }
-      i++;
-    }
-    const firstAttr = attrs[0];
-    if (firstAttr && !firstAttr.name.startsWith("@") && !firstAttr.name.startsWith("~") && !firstAttr.name.startsWith("!") && !firstAttr.name.startsWith("?") && firstAttr.name !== "name" && firstAttr.name !== "theme" && !PASSTHROUGH_ATTRS.has(firstAttr.name)) {
-      if (firstAttr.value) {
-        binding.literal = firstAttr.value;
-      } else {
-        let attrName = firstAttr.name;
-        if (attrName.startsWith('"') && attrName.endsWith('"') || attrName.startsWith("'") && attrName.endsWith("'")) {
-          attrName = attrName.slice(1, -1);
-        }
-        binding.positional = attrName;
-      }
-    }
-    return binding;
-  }
-  function parsePassthroughAttrs(el) {
-    const result = {};
-    for (const attr of Array.from(el.attributes)) {
-      if (PASSTHROUGH_ATTRS.has(attr.name)) {
-        result[attr.name] = attr.value;
-      }
-    }
-    return result;
-  }
-  function extractIntent(el) {
-    for (const attr of Array.from(el.attributes)) {
-      if (attr.name.startsWith("?")) return attr.value || attr.name.slice(1);
-    }
-    return void 0;
-  }
-  function req(el, attr) {
-    const v = el.getAttribute(attr);
-    if (!v) throw new Error(`[mere] <${el.tagName.toLowerCase()}> missing required attribute "${attr}"`);
-    return v;
-  }
-
-  // src/runtime/state.ts
-  var Store = class {
-    values = /* @__PURE__ */ new Map();
-    subs = /* @__PURE__ */ new Map();
-    computed = [];
-    stateDecls = /* @__PURE__ */ new Map();
-    persist = null;
-    saveTimers = /* @__PURE__ */ new Map();
-    init(decl) {
-      this.computed = decl.computed;
-      for (const s of decl.state) {
-        this.stateDecls.set(s.name, s);
-        const initial = s.default !== void 0 ? s.default : defaultFor(s.type);
-        this.values.set(s.name, initial);
-      }
-      for (const c of decl.computed) {
-        this.values.set(c.name, this.evalComputed(c));
-      }
-    }
-    // Called after persist.init() resolves — loads saved values and overrides defaults
-    async loadPersisted(persist) {
-      this.persist = persist;
-      for (const [name, decl] of this.stateDecls) {
-        if (!decl.persist) continue;
-        const saved = await persist.load(name);
-        if (saved !== void 0) {
-          this.values.set(name, saved);
-          this.notify(name);
-          this.recomputeDepending(name);
-        }
-      }
-    }
-    has(name) {
-      return this.values.has(name.split(".")[0] ?? name);
-    }
-    get(name, context) {
-      if (name.includes(".")) {
-        const parts = name.split(".");
-        const head = parts[0] ?? "";
-        const path = parts.slice(1).join(".");
-        if (head === "item" && context?.item) {
-          return getPath(context.item, path);
-        }
-        const base = this.values.get(head);
-        if (base && typeof base === "object") {
-          return getPath(base, path);
-        }
-        return "";
-      }
-      return this.values.get(name) ?? "";
-    }
-    set(name, value) {
-      if (name.includes(".")) {
-        const parts = name.split(".");
-        const head = parts[0] ?? "";
-        const rest = parts.slice(1).join(".");
-        const base = this.values.get(head);
-        if (base && typeof base === "object") {
-          const clone = { ...base };
-          setPath(clone, rest, value);
-          this.values.set(head, clone);
-          this.notify(head);
-          this.recomputeDepending(head);
-        }
-        return;
-      }
-      this.values.set(name, value);
-      this.notify(name);
-      this.recomputeDepending(name);
-      this.scheduleSave(name);
-    }
-    scheduleSave(name) {
-      if (!this.persist) return;
-      const decl = this.stateDecls.get(name);
-      if (!decl?.persist) return;
-      const existing = this.saveTimers.get(name);
-      if (existing) clearTimeout(existing);
-      const timer = setTimeout(() => {
-        this.persist.save(name, this.values.get(name));
-        this.saveTimers.delete(name);
-      }, 500);
-      this.saveTimers.set(name, timer);
-    }
-    subscribe(name, fn) {
-      const root = name.split(".")[0] ?? name;
-      if (!this.subs.has(root)) this.subs.set(root, /* @__PURE__ */ new Set());
-      this.subs.get(root).add(fn);
-      fn();
-    }
-    unsubscribe(name, fn) {
-      const root = name.split(".")[0] ?? name;
-      this.subs.get(root)?.delete(fn);
-    }
-    // ── Filter a list state value by a where clause ────────────────────────────
-    filter(from, where) {
-      const list = this.values.get(from);
-      if (!Array.isArray(list)) return [];
-      if (!where) return list;
-      return list.filter((item) => evalWhere(where, item, this));
-    }
-    // ── Invoke an action ───────────────────────────────────────────────────────
-    invokeAction(name, args, argValues, onGoTo, context) {
-      const action = this.actions?.get(name);
-      if (!action) {
-        console.warn(`[mere] Unknown action: ${name}`);
-        return;
-      }
-      const scope = {};
-      action.takes.forEach((param, i) => {
-        scope[param] = argValues[i] ?? this.resolveArg(args[i] ?? "", context);
-      });
-      for (const stmt of action.statements) {
-        if (stmt.kind === "set") {
-          const value = scope[stmt.value] ?? this.resolveArg(stmt.value, context);
-          if (stmt.where && stmt.target.includes(".")) {
-            this.setWhere(stmt.target, stmt.value, stmt.where, scope, context);
-          } else if (stmt.where) {
-            const src = this.values.get(stmt.value);
-            if (Array.isArray(src)) {
-              const match = src.find(
-                (item) => evalWhere(stmt.where, item, this, scope)
-              );
-              this.set(stmt.target, match ?? {});
-            }
-          } else if (stmt.target.includes("=")) {
-          } else {
-            if (stmt.value.startsWith('"')) {
-              this.set(stmt.target, stmt.value.slice(1, -1));
-            } else {
-              const src = this.values.get(stmt.value);
-              this.set(stmt.target, src ?? scope[stmt.value] ?? value);
-            }
-          }
-        } else if (stmt.kind === "go-to") {
-          onGoTo(stmt.screen);
-        } else if (stmt.kind === "clear") {
-          const decl = this.stateDecls.get(stmt.target);
-          const resetVal = decl?.default !== void 0 ? decl.default : defaultFor(decl?.type ?? "text");
-          this.set(stmt.target, resetVal);
-        } else if (stmt.kind === "add-to") {
-          const list = this.values.get(stmt.list);
-          if (Array.isArray(list)) {
-            const item = {};
-            for (const { key, value } of stmt.fields) {
-              if (value.startsWith('"') && value.endsWith('"')) {
-                item[key] = value.slice(1, -1);
-              } else {
-                item[key] = scope[value] ?? this.resolveArg(value, context);
-              }
-            }
-            if (!item["id"]) item["id"] = String(Date.now() + Math.random());
-            if (!item["received-at"]) item["received-at"] = (/* @__PURE__ */ new Date()).toISOString();
-            this.set(stmt.list, [...list, item]);
-          }
-        } else if (stmt.kind === "remove-from") {
-          const list = this.values.get(stmt.list);
-          if (Array.isArray(list)) {
-            const updated = list.filter(
-              (item) => !evalWhere(stmt.where, item, this, scope)
-            );
-            this.set(stmt.list, updated);
-          }
-        }
-      }
-    }
-    // Called once after parsing actions
-    actions;
-    resolveArg(arg, context) {
-      if (arg.startsWith('"') && arg.endsWith('"')) return arg.slice(1, -1);
-      const name = arg.startsWith("@") ? arg.slice(1) : arg;
-      return this.get(name, context);
-    }
-    setWhere(target, field2, where, scope, context) {
-      const [listName, fieldName] = target.split(".");
-      if (!listName || !fieldName) return;
-      const list = this.values.get(listName);
-      if (!Array.isArray(list)) return;
-      const value = scope[field2] ?? (field2.startsWith('"') ? field2.slice(1, -1) : this.get(field2, context));
-      const updated = list.map(
-        (item) => evalWhere(where, item, this, scope) ? { ...item, [fieldName]: value } : item
-      );
-      this.set(listName, updated);
-    }
-    notify(name) {
-      this.subs.get(name)?.forEach((fn) => fn());
-    }
-    recomputeDepending(name) {
-      for (const c of this.computed) {
-        const sources = c.from.split(",").map((s) => s.trim());
-        if (sources.includes(name) || whereReferencesState(c.where, name)) {
-          const newVal = this.evalComputed(c);
-          this.values.set(c.name, newVal);
-          this.notify(c.name);
-          this.recomputeDepending(c.name);
-        }
-      }
-    }
-    evalComputed(c) {
-      const source = this.values.get(c.from);
-      if (c.op === "subtract") {
-        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
-        return (a ?? 0) - (b ?? 0);
-      }
-      if (c.op === "add") {
-        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
-        return (a ?? 0) + (b ?? 0);
-      }
-      if (c.op === "percent") {
-        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
-        if (!b) return 0;
-        return Math.round((a ?? 0) / b * 100);
-      }
-      if (c.op === "percent-of") {
-        const [a, b] = c.from.split(",").map((n) => toNumber(this.values.get(n.trim())));
-        return (a ?? 0) * (b ?? 0) / 100;
-      }
-      if (c.op === "sum-product") {
-        if (!c.field || !c.by || !Array.isArray(source)) return 0;
-        const filtered2 = c.where ? source.filter((item) => evalWhere(c.where, item, this)) : source;
-        return filtered2.reduce(
-          (acc, item) => acc + toNumber(item[c.field]) * toNumber(item[c.by]),
-          0
-        );
-      }
-      if (!Array.isArray(source)) return c.op === "count" ? 0 : 0;
-      const filtered = c.where ? source.filter((item) => evalWhere(c.where, item, this)) : source;
-      if (c.op === "count") return filtered.length;
-      if (c.op === "sum") {
-        if (!c.field) return 0;
-        return filtered.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
-      }
-      if (c.op === "avg") {
-        if (!c.field || filtered.length === 0) return 0;
-        const total = filtered.reduce((acc, item) => acc + toNumber(item[c.field]), 0);
-        return Math.round(total / filtered.length);
-      }
-      return filtered;
-    }
-  };
-  function toNumber(v) {
-    if (typeof v === "number") return v;
-    if (typeof v === "string") return parseFloat(v.replace(/[^0-9.\-]/g, "")) || 0;
-    return 0;
-  }
-  function defaultFor(type) {
-    switch (type) {
-      case "text":
-        return "";
-      case "number":
-        return 0;
-      case "boolean":
-        return false;
-      case "list":
-        return [];
-      case "map":
-        return {};
-      default:
-        return null;
-    }
-  }
-  function getPath(obj, path) {
-    const parts = path.split(".");
-    let cur = obj;
-    for (const p of parts) {
-      if (cur == null || typeof cur !== "object") return "";
-      cur = cur[p];
-    }
-    return cur ?? "";
-  }
-  function setPath(obj, path, value) {
-    const parts = path.split(".");
-    let cur = obj;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const key = parts[i];
-      if (cur[key] == null || typeof cur[key] !== "object") cur[key] = {};
-      cur = cur[key];
-    }
-    const last = parts[parts.length - 1];
-    if (last) cur[last] = value;
-  }
-  function whereReferencesState(where, name) {
-    if (!where) return false;
-    const match = where.match(/^(\S+)\s*=\s*(.+)$/);
-    if (!match) return false;
-    const rhs = match[2].trim();
-    return rhs === name && !rhs.startsWith('"') && !rhs.startsWith("'");
-  }
-  function evalWhere(where, item, store, scope) {
-    const match = where.match(/^(\S+)\s*=\s*(.+)$/);
-    if (!match) return true;
-    const [, lhs, rhs] = match;
-    if (!lhs || !rhs) return true;
-    const left = getPath(item, lhs);
-    let right;
-    const trimmed = rhs.trim();
-    if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-      right = trimmed.slice(1, -1);
-    } else if (trimmed === "true") {
-      right = true;
-    } else if (trimmed === "false") {
-      right = false;
-    } else if (scope?.[trimmed] !== void 0) {
-      right = scope[trimmed];
-    } else if (store.has(trimmed)) {
-      right = store.get(trimmed);
-    } else {
-      right = trimmed;
-    }
-    if (right === "all" || right === "") return true;
-    return left === right;
-  }
-
-  // src/runtime/persist.ts
-  var Persist = class {
-    opfsDir = null;
-    useOpfs = false;
-    key;
-    constructor() {
-      this.key = workbookKey();
-    }
-    async init() {
-      if (!("storage" in navigator) || !("getDirectory" in navigator.storage)) {
-        console.info("[mere] OPFS unavailable \u2014 using localStorage");
-        return;
-      }
-      try {
-        const root = await navigator.storage.getDirectory();
-        const base = await root.getDirectoryHandle("mere", { create: true });
-        this.opfsDir = await base.getDirectoryHandle(this.key, { create: true });
-        this.useOpfs = true;
-        console.info("[mere] Persistence: OPFS");
-      } catch {
-        console.info("[mere] OPFS init failed \u2014 using localStorage");
-      }
-    }
-    async load(name) {
-      if (this.useOpfs && this.opfsDir) {
-        try {
-          const fh = await this.opfsDir.getFileHandle(name + ".json");
-          const file = await fh.getFile();
-          return JSON.parse(await file.text());
-        } catch {
-          return void 0;
-        }
-      } else {
-        const raw = localStorage.getItem(lsKey(this.key, name));
-        return raw !== null ? JSON.parse(raw) : void 0;
-      }
-    }
-    async save(name, value) {
-      const json = JSON.stringify(value);
-      if (this.useOpfs && this.opfsDir) {
-        try {
-          const fh = await this.opfsDir.getFileHandle(name + ".json", { create: true });
-          const writable = await fh.createWritable();
-          await writable.write(json);
-          await writable.close();
-        } catch (e) {
-          console.warn(`[mere] OPFS save failed for "${name}":`, e);
-          try {
-            localStorage.setItem(lsKey(this.key, name), json);
-          } catch {
-          }
-        }
-      } else {
-        try {
-          localStorage.setItem(lsKey(this.key, name), json);
-        } catch {
-          console.warn(`[mere] localStorage full \u2014 "${name}" not persisted`);
-        }
-      }
-    }
-  };
-  function workbookKey() {
-    const url = location.href.replace(/[?#].*$/, "");
-    let h = 5381;
-    for (let i = 0; i < url.length; i++) {
-      h = (h << 5) + h + url.charCodeAt(i) | 0;
-    }
-    return "wb-" + Math.abs(h).toString(36);
-  }
-  function lsKey(workbook, state) {
-    return `mere:${workbook}:${state}`;
-  }
-
-  // src/runtime/elements.ts
-  function div(cls, ...extra) {
-    const el = document.createElement("div");
-    el.classList.add("mp-" + cls, ...extra.map((c) => "mp-" + c));
-    return el;
-  }
-  function span(cls) {
-    const el = document.createElement("span");
-    el.classList.add("mp-" + cls);
-    return el;
-  }
-  var screenRoot = (node, store, context, onGoTo, rc) => {
-    const el = div("screen");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var header = (node, store, context, onGoTo, rc) => {
-    const el = document.createElement("header");
-    el.classList.add("mp-header");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var footer = (node, store, context, onGoTo, rc) => {
-    const el = document.createElement("footer");
-    el.classList.add("mp-footer");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var heading = (node, store, context, onGoTo) => {
-    const el = document.createElement("h2");
-    el.classList.add("mp-heading");
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, (v) => {
-        el.textContent = v;
-      });
-    } else {
-      bindText(el, node.text, store, context);
-    }
-    return el;
-  };
-  var subtitle = (node, store, context, onGoTo) => {
-    const el = span("subtitle");
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, (v) => {
-        el.textContent = v;
-      });
-    } else {
-      bindText(el, node.text, store, context);
-    }
-    return el;
-  };
-  var paragraph = (node, store, context, onGoTo) => {
-    const el = document.createElement("p");
-    el.classList.add("mp-paragraph");
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, (v) => {
-        el.textContent = v;
-      });
-    } else {
-      bindText(el, node.text, store, context);
-    }
-    return el;
-  };
-  var timestamp = (node, store, context, onGoTo) => {
-    const el = span("timestamp");
-    const update = (raw) => {
-      const d = new Date(raw);
-      el.textContent = isNaN(d.getTime()) ? raw : formatRelative(d);
-      el.title = raw;
-    };
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, update);
-    } else {
-      update(node.text);
-    }
-    return el;
-  };
-  var badge = (node, store, context, onGoTo) => {
-    const el = span("badge");
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, (v) => {
-        el.textContent = v;
-        el.style.display = v === "0" || v === "" ? "none" : "";
-      });
-    } else {
-      el.textContent = node.text;
-    }
-    return el;
-  };
-  var avatar = (node, store, context, onGoTo) => {
-    const el = div("avatar");
-    if (node.bindings.read) {
-      bindRead(el, node.bindings.read, store, context, (v) => {
-        if (v.startsWith("http") || v.startsWith("/") || v.startsWith("data:")) {
-          el.innerHTML = `<img src="${v}" alt="">`;
-        } else {
-          el.textContent = v.slice(0, 2).toUpperCase();
-        }
-      });
-    }
-    return el;
-  };
-  var icon = (node, store, context, onGoTo) => {
-    const el = span("icon");
-    const name = node.bindings.positional ?? node.bindings.literal ?? node.text;
-    el.dataset["icon"] = name;
-    el.setAttribute("aria-label", name);
-    el.textContent = iconGlyph(name);
-    return el;
-  };
-  var tabBar = (node, store, context, onGoTo, rc) => {
-    const el = div("tab-bar");
-    const stateName = node.bindings.twoWay ?? "";
-    for (const child of node.children) {
-      if (child.tag !== "tab") continue;
-      const tabEl = document.createElement("button");
-      tabEl.classList.add("mp-tab");
-      const tabValue = child.bindings.positional ?? child.bindings.literal ?? "";
-      tabEl.dataset["value"] = tabValue;
-      bindText(tabEl, child.text, store, context);
-      const setActive = () => {
-        const current = String(store.get(stateName, context));
-        tabEl.classList.toggle("mp-tab--active", current === tabValue);
-      };
-      setActive();
-      if (stateName) store.subscribe(stateName, setActive);
-      tabEl.addEventListener("click", () => {
-        if (stateName) store.set(stateName, tabValue);
-      });
-      el.appendChild(tabEl);
-    }
-    return el;
-  };
-  var navigationBar = (node, store, context, onGoTo, rc) => {
-    const position = node.bindings.literal ?? node.bindings.positional ?? "bottom";
-    const el = document.createElement("nav");
-    el.classList.add("mp-navigation-bar", `mp-navigation-bar--${position}`);
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var navItem = (node, store, context, onGoTo) => {
-    const el = document.createElement("button");
-    el.classList.add("mp-nav-item");
-    const attrs = Array.from(
-      node._el?.attributes ?? []
-    );
-    const target = node.bindings.literal ?? node.bindings.positional ?? "";
-    el.dataset["target"] = target;
-    el.textContent = node.text;
-    if (node.bindings.action) {
-      bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
-    } else if (target) {
-      el.addEventListener("click", () => onGoTo(target));
-    }
-    return el;
-  };
-  function makeList(cls) {
-    return (node, store, context, onGoTo, rc) => {
-      const el = div(cls);
-      const stateName = node.bindings.read ?? "";
-      const template = node.children[0];
-      const render = () => {
-        el.innerHTML = "";
-        if (!stateName || !template) return;
-        const items = store.get(stateName, context);
-        if (!Array.isArray(items)) return;
-        for (const item of items) {
-          const itemContext = { ...context, item };
-          const itemEl = renderChildren2(template, store, itemContext, onGoTo);
-          el.appendChild(itemEl);
-        }
-      };
-      render();
-      if (stateName) store.subscribe(stateName, render);
-      return el;
-    };
-  }
-  function makeCard(cls) {
-    return (node, store, context, onGoTo, rc) => {
-      const el = div(cls);
-      el.setAttribute("role", "button");
-      el.setAttribute("tabindex", "0");
-      if (node.bindings.action) {
-        bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
-        el.style.cursor = "pointer";
-      }
-      rc(el, node, store, context, onGoTo);
-      return el;
-    };
-  }
-  var form = (node, store, context, onGoTo, rc) => {
-    const el = document.createElement("form");
-    el.classList.add("mp-form");
-    el.addEventListener("submit", (e) => e.preventDefault());
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var field = (node, store, context, onGoTo) => {
-    const wrapper = div("field");
-    const input = document.createElement("input");
-    input.classList.add("mp-field__input");
-    for (const [k, v] of Object.entries(node.attrs)) {
-      input.setAttribute(k, v);
-    }
-    if (node.bindings.twoWay) {
-      bindTwoWay(input, node.bindings.twoWay, store, context);
-    }
-    wrapper.appendChild(input);
-    return wrapper;
-  };
-  var button = (node, store, context, onGoTo) => {
-    const el = document.createElement("button");
-    el.classList.add("mp-button");
-    el.textContent = node.text;
-    for (const [k, v] of Object.entries(node.attrs)) {
-      el.setAttribute(k, v);
-    }
-    if (node.bindings.action) {
-      bindAction(el, node.bindings.action.name, node.bindings.action.args, store, context, onGoTo);
-    }
-    return el;
-  };
-  var toggle = (node, store, context, onGoTo) => {
-    const label = document.createElement("label");
-    label.classList.add("mp-toggle");
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.classList.add("mp-toggle__input");
-    const track = span("toggle__track");
-    const textSpan = span("toggle__label");
-    textSpan.textContent = node.text;
-    if (node.bindings.twoWay) {
-      const stateName = node.bindings.twoWay;
-      const sync = () => {
-        const val = store.get(stateName, context);
-        input.checked = Boolean(val);
-      };
-      sync();
-      store.subscribe(stateName, sync);
-      input.addEventListener("change", () => store.set(stateName, input.checked));
-    }
-    label.appendChild(input);
-    label.appendChild(track);
-    label.appendChild(textSpan);
-    return label;
-  };
-  var sidebar = (node, store, context, onGoTo, rc) => {
-    const el = document.createElement("nav");
-    el.classList.add("mp-sidebar");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var sidebarBrand = (node, store, context, onGoTo) => {
-    const el = div("sidebar-brand");
-    el.textContent = node.text;
-    return el;
-  };
-  var sidebarSection = (node, store, context, onGoTo, rc) => {
-    const el = div("sidebar-section");
-    const label = node.attrs["label"] ?? node.bindings.literal ?? node.bindings.positional ?? "";
-    if (label) {
-      const labelEl = span("sidebar-label");
-      labelEl.textContent = label;
-      el.appendChild(labelEl);
-    }
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var dataTable = (node, store, context, onGoTo) => {
-    const wrapper = div("data-table-wrap");
-    const table = document.createElement("table");
-    table.classList.add("mp-data-table");
-    const stateName = node.bindings.read ?? "";
-    const cols = node.children.filter((c) => c.tag === "column");
-    const actionBinding = node.bindings.action;
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    for (const col of cols) {
-      const th = document.createElement("th");
-      th.textContent = col.attrs["label"] ?? col.attrs["field"] ?? "";
-      headerRow.appendChild(th);
-    }
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    const tbody = document.createElement("tbody");
-    table.appendChild(tbody);
-    const render = () => {
-      tbody.innerHTML = "";
-      const items = store.get(stateName, context);
-      if (!Array.isArray(items)) return;
-      for (const rawItem of items) {
-        const item = rawItem;
-        const tr = document.createElement("tr");
-        tr.classList.add("mp-data-table__row");
-        if (actionBinding) {
-          tr.style.cursor = "pointer";
-          const rowContext = { ...context, item };
-          tr.addEventListener("click", () => {
-            const argValues = actionBinding.args.map((a) => store.get(a, rowContext));
-            store.invokeAction(actionBinding.name, actionBinding.args, argValues, onGoTo, rowContext);
-          });
-        }
-        for (const col of cols) {
-          const td = document.createElement("td");
-          const field2 = col.attrs["field"] ?? "";
-          const asType = col.attrs["as"] ?? "";
-          const value = String(item[field2] ?? "");
-          if (asType === "status-badge") {
-            const badge2 = document.createElement("span");
-            const slug = value.toLowerCase().replace(/[\s/]+/g, "-");
-            badge2.classList.add("mp-status-badge", `mp-status-badge--${slug}`);
-            badge2.textContent = value;
-            td.appendChild(badge2);
-          } else if (asType === "name-url") {
-            const nameEl = document.createElement("div");
-            nameEl.classList.add("mp-cell-name");
-            nameEl.textContent = value;
-            const urlEl = document.createElement("div");
-            urlEl.classList.add("mp-cell-url");
-            urlEl.textContent = String(item["url"] ?? "");
-            td.appendChild(nameEl);
-            td.appendChild(urlEl);
-          } else if (asType === "contact") {
-            const nameEl = document.createElement("div");
-            nameEl.classList.add("mp-cell-name");
-            nameEl.textContent = value;
-            const emailEl = document.createElement("div");
-            emailEl.classList.add("mp-cell-url");
-            emailEl.textContent = String(item[field2 + "-email"] ?? item["email"] ?? "");
-            td.appendChild(nameEl);
-            td.appendChild(emailEl);
-          } else if (asType === "currency") {
-            td.textContent = formatCurrency(Number(item[field2]) || 0);
-            td.style.textAlign = "right";
-            td.style.fontVariantNumeric = "tabular-nums";
-          } else if (asType === "product") {
-            const byField = col.attrs["by"] ?? "";
-            const a = Number(item[field2]) || 0;
-            const b = Number(item[byField]) || 0;
-            td.textContent = formatCurrency(a * b);
-            td.style.textAlign = "right";
-            td.style.fontVariantNumeric = "tabular-nums";
-          } else {
-            td.textContent = value;
-          }
-          tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      }
-    };
-    render();
-    if (stateName) store.subscribe(stateName, render);
-    wrapper.appendChild(table);
-    return wrapper;
-  };
-  var searchBar = (node, store, context, onGoTo) => {
-    const wrapper = div("search-bar");
-    const iconEl = document.createElement("span");
-    iconEl.classList.add("mp-search-bar__icon");
-    iconEl.textContent = "\u2315";
-    const input = document.createElement("input");
-    input.classList.add("mp-search-bar__input");
-    input.type = "search";
-    for (const [k, v] of Object.entries(node.attrs)) {
-      input.setAttribute(k, v);
-    }
-    if (node.bindings.twoWay) {
-      bindTwoWay(input, node.bindings.twoWay, store, context);
-    }
-    wrapper.appendChild(iconEl);
-    wrapper.appendChild(input);
-    return wrapper;
-  };
-  var spreadsheet = (node, store, context, onGoTo) => {
-    const wrapper = div("spreadsheet-wrap");
-    const table = document.createElement("table");
-    table.classList.add("mp-spreadsheet");
-    const stateName = node.bindings.read ?? "";
-    const cols = node.children.filter((c) => c.tag === "column");
-    const thead = document.createElement("thead");
-    const headerRow = document.createElement("tr");
-    for (const col of cols) {
-      const th = document.createElement("th");
-      th.textContent = col.attrs["label"] ?? col.attrs["field"] ?? "";
-      headerRow.appendChild(th);
-    }
-    thead.appendChild(headerRow);
-    table.appendChild(thead);
-    const tbody = document.createElement("tbody");
-    table.appendChild(tbody);
-    const render = () => {
-      tbody.innerHTML = "";
-      const items = store.get(stateName, context);
-      if (!Array.isArray(items)) return;
-      items.forEach((item, idx) => {
-        const tr = document.createElement("tr");
-        tr.classList.add("mp-spreadsheet__row");
-        for (const col of cols) {
-          const td = document.createElement("td");
-          const fieldName = col.attrs["field"] ?? "";
-          const format = col.attrs["format"] ?? "";
-          const raw = item[fieldName];
-          if ("editable" in col.attrs) {
-            const input = document.createElement("input");
-            input.classList.add("mp-spreadsheet__input");
-            input.value = String(raw ?? "");
-            input.addEventListener("change", () => {
-              const list = store.get(stateName, context);
-              if (!Array.isArray(list)) return;
-              const newVal = format === "currency" || format === "number" ? parseFloat(input.value) || 0 : input.value;
-              store.set(stateName, list.map(
-                (it, i) => i === idx ? { ...it, [fieldName]: newVal } : it
-              ));
-            });
-            td.appendChild(input);
-          } else {
-            td.textContent = format === "currency" ? formatCurrency(Number(raw) || 0) : String(raw ?? "");
-          }
-          tr.appendChild(td);
-        }
-        tbody.appendChild(tr);
-      });
-    };
-    render();
-    if (stateName) store.subscribe(stateName, render);
-    wrapper.appendChild(table);
-    return wrapper;
-  };
-  var metric = (node, store, context, onGoTo) => {
-    const el = div("metric");
-    const format = node.attrs["format"] ?? "";
-    const valueEl = document.createElement("div");
-    valueEl.classList.add("mp-metric__value");
-    const labelEl = document.createElement("div");
-    labelEl.classList.add("mp-metric__label");
-    labelEl.textContent = node.text;
-    const update = (v) => {
-      const num = parseFloat(v) || 0;
-      if (format === "currency") valueEl.textContent = formatCurrency(num);
-      else if (format === "percent") valueEl.textContent = `${num}%`;
-      else valueEl.textContent = v;
-    };
-    if (node.bindings.read) {
-      bindRead(valueEl, node.bindings.read, store, context, update);
-    } else {
-      update(node.text);
-    }
-    el.appendChild(valueEl);
-    el.appendChild(labelEl);
-    return el;
-  };
-  var metricGroup = (node, store, context, onGoTo, rc) => {
-    const el = div("metric-group");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var bar = (node, store, context, onGoTo) => {
-    const wrapper = div("bar");
-    const label = node.attrs["label"] ?? node.text;
-    const headerEl = div("bar__header");
-    const labelEl = document.createElement("span");
-    labelEl.classList.add("mp-bar__label");
-    labelEl.textContent = label;
-    const valueEl = document.createElement("span");
-    valueEl.classList.add("mp-bar__value");
-    headerEl.appendChild(labelEl);
-    headerEl.appendChild(valueEl);
-    const track = div("bar__track");
-    const fill = div("bar__fill");
-    track.appendChild(fill);
-    if (node.bindings.read) {
-      bindRead(wrapper, node.bindings.read, store, context, (v) => {
-        const pct = Math.min(100, Math.max(0, parseFloat(v) || 0));
-        fill.style.width = `${pct}%`;
-        valueEl.textContent = `${pct}%`;
-      });
-    }
-    wrapper.appendChild(headerEl);
-    wrapper.appendChild(track);
-    return wrapper;
-  };
-  var kv = (node, store, context, onGoTo) => {
-    const el = div("kv");
-    const format = node.attrs["format"] ?? "";
-    const label = node.attrs["label"] ?? node.bindings.literal ?? node.bindings.positional ?? "";
-    const labelEl = document.createElement("span");
-    labelEl.classList.add("mp-kv__label");
-    labelEl.textContent = label;
-    const valueEl = document.createElement("span");
-    valueEl.classList.add("mp-kv__value");
-    const update = (v) => {
-      const num = parseFloat(v) || 0;
-      if (format === "currency") valueEl.textContent = formatCurrency(num);
-      else if (format === "percent") valueEl.textContent = `${num}%`;
-      else valueEl.textContent = v;
-    };
-    if (node.bindings.read) {
-      bindRead(valueEl, node.bindings.read, store, context, update);
-    } else {
-      update(node.text);
-    }
-    el.appendChild(labelEl);
-    el.appendChild(valueEl);
-    return el;
-  };
-  var modal = (node, store, context, onGoTo, rc) => {
-    const el = div("modal");
-    el.setAttribute("role", "dialog");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var toast = (node, store, context, onGoTo, rc) => {
-    const el = div("toast");
-    el.setAttribute("role", "status");
-    el.textContent = node.text;
-    return el;
-  };
-  var banner = (node, store, context, onGoTo, rc) => {
-    const el = div("banner");
-    el.setAttribute("role", "banner");
-    rc(el, node, store, context, onGoTo);
-    return el;
-  };
-  var ELEMENTS = {
-    "screen-root": screenRoot,
-    "header": header,
-    "footer": footer,
-    "heading": heading,
-    "subtitle": subtitle,
-    "paragraph": paragraph,
-    "timestamp": timestamp,
-    "badge": badge,
-    "avatar": avatar,
-    "icon": icon,
-    "tab-bar": tabBar,
-    "tab": () => div("tab"),
-    // handled inside tab-bar; standalone is a no-op
-    "navigation-bar": navigationBar,
-    "nav-item": navItem,
-    "message-list": makeList("message-list"),
-    "card-list": makeList("card-list"),
-    "list": makeList("list"),
-    "message-card": makeCard("message-card"),
-    "card": makeCard("card"),
-    "form": form,
-    "field": field,
-    "button": button,
-    "toggle": toggle,
-    "modal": modal,
-    "toast": toast,
-    "banner": banner,
-    // Full / dashboard layout
-    "sidebar": sidebar,
-    "sidebar-brand": sidebarBrand,
-    "sidebar-section": sidebarSection,
-    "data-table": dataTable,
-    "column": () => {
-      const el = document.createElement("span");
-      el.style.display = "none";
-      return el;
-    },
-    "search-bar": searchBar,
-    // Spreadsheet + metrics
-    "spreadsheet": spreadsheet,
-    "metric": metric,
-    "metric-group": metricGroup,
-    "bar": bar,
-    // Key-value row
-    "kv": kv
-  };
-  function renderChildren2(node, store, context, onGoTo) {
-    const handler = ELEMENTS[node.tag];
-    if (handler) {
-      return handler(node, store, context, onGoTo, renderChildrenInline);
-    }
-    const el = document.createElement("div");
-    el.dataset["tag"] = node.tag;
-    renderChildrenInline(el, node, store, context, onGoTo);
-    return el;
-  }
-  function renderChildrenInline(container, node, store, context, onGoTo) {
-    for (const child of node.children) {
-      container.appendChild(renderChildren2(child, store, context, onGoTo));
-    }
-    if (node.text && node.children.length === 0) {
-      container.textContent = node.text;
-    }
-  }
-  function formatRelative(d) {
-    const diff = Date.now() - d.getTime();
-    const mins = Math.floor(diff / 6e4);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hours = Math.floor(mins / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    if (days < 7) return `${days}d ago`;
-    return d.toLocaleDateString();
-  }
-  function formatCurrency(n) {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
-  }
-  function iconGlyph(name) {
-    const glyphs = {
-      "inbox": "\u2709",
-      "starred": "\u2605",
-      "star": "\u2605",
-      "settings": "\u2699",
-      "archive": "\u2193",
-      "arrow-left": "\u2190",
-      "back": "\u2190",
-      "search": "\u2315",
-      "compose": "\u270E",
-      "close": "\u2715",
-      "check": "\u2713",
-      "menu": "\u2261",
-      "more": "\u2026"
-    };
-    return glyphs[name] ?? "\u25CB";
-  }
-
-  // src/runtime/renderer.ts
-  function renderNode(node, store, context, onGoTo) {
-    const handler = ELEMENTS[node.tag];
-    if (handler) {
-      return handler(node, store, context, onGoTo, renderChildren3);
-    }
-    const el = document.createElement("div");
-    el.dataset["tag"] = node.tag;
-    el.classList.add(`mp-unknown`);
-    renderChildren3(el, node, store, context, onGoTo);
-    return el;
-  }
-  function renderChildren3(container, node, store, context, onGoTo) {
-    for (const child of node.children) {
-      container.appendChild(renderNode(child, store, context, onGoTo));
-    }
-    if (node.text && node.children.length === 0) {
-      container.textContent = node.text;
-    }
-  }
-  function resolveRead2(name, store, context) {
-    const val = store.get(name, context);
-    if (val === null || val === void 0) return "";
-    if (typeof val === "object") return JSON.stringify(val);
-    return String(val);
-  }
-  function bindRead(el, stateName, store, context, apply) {
-    const update = () => apply(resolveRead2(stateName, store, context));
-    update();
-    store.subscribe(stateName, update);
-    return () => store.unsubscribe(stateName, update);
-  }
-  function bindText(el, template, store, context) {
-    const refs = [...template.matchAll(/@([\w-]+(?:\.[\w-]+)*)/g)].map((m) => m[1]);
-    if (refs.length === 0) {
-      el.textContent = template;
-      return;
-    }
-    const update = () => {
-      el.textContent = template.replace(
-        /@([\w-]+(?:\.[\w-]+)*)/g,
-        (_, name) => String(store.get(name, context) ?? "")
-      );
-    };
-    update();
-    for (const ref of [...new Set(refs)]) {
-      store.subscribe(ref, update);
-    }
-  }
-  function bindTwoWay(el, stateName, store, context) {
-    const update = () => {
-      const val = store.get(stateName, context);
-      el.value = val === null || val === void 0 ? "" : String(val);
-    };
-    update();
-    store.subscribe(stateName, update);
-    el.addEventListener("change", () => store.set(stateName, el.value));
-    el.addEventListener("input", () => store.set(stateName, el.value));
-  }
-  function bindAction(el, actionName, args, store, context, onGoTo) {
-    el.addEventListener("click", () => {
-      const argValues = args.map((a) => store.get(a, context));
-      store.invokeAction(actionName, args, argValues, onGoTo, context);
-      console.log(`[mere] action: ${actionName}`, args, argValues);
-    });
-  }
-
-  // src/themes/classic-light.css
-  var classic_light_default = `/* \u2500\u2500 Mere: classic-light theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* mere-runtime unknown — packed 2026-07-16 */
+"use strict";var Mere=(()=>{var H=Object.defineProperty;var ln=Object.getOwnPropertyDescriptor;var gn=Object.getOwnPropertyNames;var un=Object.prototype.hasOwnProperty;var bn=(e,n)=>{for(var t in n)H(e,t,{get:n[t],enumerable:!0})},fn=(e,n,t,o)=>{if(n&&typeof n=="object"||typeof n=="function")for(let r of gn(n))!un.call(e,r)&&r!==t&&H(e,r,{get:()=>n[r],enumerable:!(o=ln(n,r))||o.enumerable});return e};var xn=e=>fn(H({},"__esModule",{value:!0}),e);var fe={};bn(fe,{bootstrap:()=>mn});function X(e){let n=e.getAttribute("theme")??"classic-light",t=e.getAttribute("layout")??"mobile",o=vn(e.querySelector(":scope > state")),r=wn(e.querySelector(":scope > computed")),a=yn(e.querySelector(":scope > actions")),i=Cn(e.querySelectorAll(":scope > screen")),p=e.querySelector(":scope > sidebar"),s=p?G(p):void 0;return{theme:n,layout:t,state:o,computed:r,actions:a,screens:i,sidebar:s}}function vn(e){return e?Array.from(e.querySelectorAll(":scope > value")).map(n=>{let t=n.getAttribute("type")??"text",o=t==="record-list"?hn(n):void 0;return{name:F(n,"name"),type:t,default:J(n.getAttribute("value")??n.getAttribute("default"),t),persist:n.hasAttribute("persist"),fields:o}}):[]}function hn(e){return Array.from(e.querySelectorAll(":scope > field")).map(n=>{let t=n.getAttribute("default")??void 0,o=n.getAttribute("type")??"text";return{name:F(n,"name"),type:o,default:t!==void 0?J(t,o):void 0}})}function J(e,n){if(e!==null){if(n==="number")return Number(e);if(n==="boolean")return e==="true";if(n==="list"||n==="record-list"||n==="map")try{return JSON.parse(e)}catch{return n==="map"?{}:[]}return e}}function wn(e){return e?Array.from(e.querySelectorAll(":scope > value")).map(n=>({name:F(n,"name"),from:F(n,"from"),where:n.getAttribute("where")??void 0,op:n.getAttribute("op")??void 0,field:n.getAttribute("field")??void 0,by:n.getAttribute("by")??void 0,window:n.getAttribute("window")?Number(n.getAttribute("window")):void 0})):[]}function yn(e){return e?Array.from(e.querySelectorAll(":scope > action")).map(n=>{let t=n.getAttribute("takes")??"",o=t.trim()?t.trim().split(/\s+/):[],r=n.textContent??"",a=kn(r.trim());return{name:F(n,"name"),takes:o,statements:a}}):[]}function kn(e){let n=[];for(let t of e.split(`
+`)){let o=t.trim();if(!o)continue;let r=o.match(/^go-to\s+(\S+)(?:\s+with\s+(.+))?$/);if(r){let m=r[2]?An(r[2]):void 0;n.push({kind:"go-to",screen:r[1],params:m});continue}let a=o.match(/^set\s+(\S+)\s+to\s+(.+?)(?:\s+where\s+(.+))?$/);if(a){n.push({kind:"set",target:a[1],value:a[2].trim(),where:a[3]?.trim()});continue}let i=o.match(/^clear\s+(\S+)$/);if(i){n.push({kind:"clear",target:i[1]});continue}let p=o.match(/^increment\s+(\S+)(?:\s+by\s+(\S+))?$/);if(p){n.push({kind:"increment",target:p[1],by:Number(p[2]??1)});continue}let s=o.match(/^decrement\s+(\S+)(?:\s+by\s+(\S+))?$/);if(s){n.push({kind:"decrement",target:s[1],by:Number(s[2]??1)});continue}let d=o.match(/^add-to\s+(\S+)\s+(.+)$/);if(d){let m=_n(d[2].trim());n.push({kind:"add-to",list:d[1],fields:m});continue}let c=o.match(/^remove-from\s+(\S+)\s+where\s+(.+)$/);if(c){n.push({kind:"remove-from",list:c[1],where:c[2].trim()});continue}}return n}function _n(e){let n=[],t=[],o=/"[^"]*"|\S+/g,r;for(;(r=o.exec(e))!==null;)t.push(r[0]);for(let a=0;a+1<t.length;a+=2)n.push({key:t[a],value:t[a+1]});return n}function Cn(e){return Array.from(e).map(n=>{let t=n.getAttribute("name")??n.getAttribute("id")??"",o=En(n),r=n.getAttribute("takes")??"",a=r.trim()?r.trim().split(/\s+/):void 0,i=G(n);return i.tag="screen-root",{name:t,intent:o,root:i,takes:a}})}function An(e){let n=[],t=e.match(/"[^"]*"|@[\w.\-]+|\S+/g)??[],o=0;for(;o+2<t.length;){let r=t[o],a=t[o+1],i=t[o+2];a==="="?(n.push({key:r,value:i}),o+=3):o++}return n}function G(e){let n=e.tagName.toLowerCase(),t=zn(e),o=Sn(e),r=Array.from(e.childNodes).filter(i=>i.nodeType===Node.TEXT_NODE).map(i=>i.textContent??"").join("").trim(),a=Array.from(e.children).map(i=>G(i));return{tag:n,bindings:t,attrs:o,children:a,text:r}}var B=new Set(["placeholder","type","required","min","max","pattern","autocomplete","name","id","class","style","field","label","as","editable","format","by","from","where","facing"]);function zn(e){let n={},t=Array.from(e.attributes),o=0;for(;o<t.length;){let a=t[o],i=a.name,p=a.value;if(i.startsWith("@"))n.read=i.slice(1)||p;else if(i.startsWith("~"))n.twoWay=i.slice(1)||p;else if(i.startsWith("!")){let s=i.slice(1),d=[];if(p){let c=p.match(/^(?:with\s+)?(.+)$/);c&&d.push(...c[1].replace(/,/g," ").split(/\s+/).filter(Boolean))}else{let c=o+1;if(c<t.length&&t[c].name==="with"){for(c++;c<t.length;){let m=t[c];if(m.name.startsWith("@")||m.name.startsWith("~")||m.name.startsWith("!")||m.name.startsWith("?")||B.has(m.name))break;d.push(m.name),c++}o=c-1}}n.action={name:s,args:d}}else i.startsWith("?")&&(n.intent=p||i.slice(1));o++}let r=t[0];if(r&&!r.name.startsWith("@")&&!r.name.startsWith("~")&&!r.name.startsWith("!")&&!r.name.startsWith("?")&&r.name!=="name"&&r.name!=="theme"&&!B.has(r.name))if(r.value)n.literal=r.value;else{let a=r.name;(a.startsWith('"')&&a.endsWith('"')||a.startsWith("'")&&a.endsWith("'"))&&(a=a.slice(1,-1)),n.positional=a}return n}function Sn(e){let n={};for(let t of Array.from(e.attributes))B.has(t.name)&&(n[t.name]=t.value);return n}function En(e){for(let n of Array.from(e.attributes))if(n.name.startsWith("?"))return n.value||n.name.slice(1)}function F(e,n){let t=e.getAttribute(n);if(!t)throw new Error(`[mere] <${e.tagName.toLowerCase()}> missing required attribute "${n}"`);return t}var W=class{values=new Map;subs=new Map;computed=[];stateDecls=new Map;fieldSchemas=new Map;persist=null;saveTimers=new Map;init(n){this.computed=n.computed;for(let t of n.state){this.stateDecls.set(t.name,t),t.type==="record-list"&&t.fields?.length&&this.fieldSchemas.set(t.name,t.fields);let o=t.default!==void 0?t.default:K(t.type);this.values.set(t.name,o)}for(let t of n.computed)this.values.set(t.name,this.evalComputed(t))}async loadPersisted(n){this.persist=n;for(let[t,o]of this.stateDecls){if(!o.persist)continue;let r=await n.load(t);r!==void 0&&(this.values.set(t,r),this.notify(t),this.recomputeDepending(t))}}has(n){return this.values.has(n.split(".")[0]??n)}get(n,t){if(n.includes(".")){let o=n.split("."),r=o[0]??"",a=o.slice(1).join(".");if(r==="item"&&t?.item)return O(t.item,a);let i=this.values.get(r);return i&&typeof i=="object"?O(i,a):""}return t&&n in t&&n!=="item"?t[n]:this.values.get(n)??""}set(n,t){if(n.includes(".")){let o=n.split("."),r=o[0]??"",a=o.slice(1).join("."),i=this.values.get(r);if(i&&typeof i=="object"){let p={...i};Rn(p,a,t),this.values.set(r,p),this.notify(r),this.recomputeDepending(r)}return}this.values.set(n,t),this.notify(n),this.recomputeDepending(n),this.scheduleSave(n)}scheduleSave(n){if(!this.persist||!this.stateDecls.get(n)?.persist)return;let o=this.saveTimers.get(n);o&&clearTimeout(o);let r=setTimeout(()=>{this.persist.save(n,this.values.get(n)),this.saveTimers.delete(n)},500);this.saveTimers.set(n,r)}subscribe(n,t){let o=n.split(".")[0]??n;this.subs.has(o)||this.subs.set(o,new Set),this.subs.get(o).add(t),t()}unsubscribe(n,t){let o=n.split(".")[0]??n;this.subs.get(o)?.delete(t)}filter(n,t){let o=this.values.get(n);return Array.isArray(o)?t?o.filter(r=>T(t,r,this)):o:[]}invokeAction(n,t,o,r,a){let i=this.actions?.get(n);if(!i){console.warn(`[mere] Unknown action: ${n}`);return}let p={};i.takes.forEach((s,d)=>{p[s]=o[d]??this.resolveArg(t[d]??"",a)});for(let s of i.statements)if(s.kind==="set"){let d=p[s.value]??this.resolveArg(s.value,a);if(s.where&&s.target.includes("."))this.setWhere(s.target,s.value,s.where,p,a);else if(s.where){let c=this.values.get(s.value);if(Array.isArray(c)){let m=c.find(l=>T(s.where,l,this,p));this.set(s.target,m??{})}}else if(!s.target.includes("="))if(s.value.startsWith('"'))this.set(s.target,s.value.slice(1,-1));else{let c=this.values.get(s.value);this.set(s.target,c??p[s.value]??d)}}else if(s.kind==="go-to")if(s.params?.length){let d={};for(let{key:c,value:m}of s.params)d[c]=this.resolveArg(m,a);r(s.screen,d)}else r(s.screen);else if(s.kind==="clear"){let d=this.stateDecls.get(s.target),c=d?.default!==void 0?d.default:K(d?.type??"text");this.set(s.target,c)}else if(s.kind==="add-to"){let d=this.values.get(s.list);if(Array.isArray(d)){let c={};for(let{key:l,value:g}of s.fields)g.startsWith('"')&&g.endsWith('"')?c[l]=g.slice(1,-1):g!==""&&!isNaN(Number(g))?c[l]=Number(g):c[l]=p[g]??this.resolveArg(g,a);let m=this.fieldSchemas.get(s.list);if(m)for(let l of m)l.name in c?c[l.name]=Y(c[l.name],l.type):l.default!==void 0&&(c[l.name]=Y(l.default,l.type));c.id||(c.id=String(Date.now()+Math.random())),c["received-at"]||(c["received-at"]=new Date().toISOString()),this.set(s.list,[...d,c])}}else if(s.kind==="remove-from"){let d=this.values.get(s.list);if(Array.isArray(d)){let c=d.filter(m=>!T(s.where,m,this,p));this.set(s.list,c)}}else if(s.kind==="increment"){let d=Number(this.values.get(s.target)??0);this.set(s.target,d+s.by)}else if(s.kind==="decrement"){let d=Number(this.values.get(s.target)??0);this.set(s.target,d-s.by)}}actions;resolveArg(n,t){if(n.startsWith('"')&&n.endsWith('"'))return n.slice(1,-1);let o=n.startsWith("@")?n.slice(1):n;return this.get(o,t)}setWhere(n,t,o,r,a){let[i,p]=n.split(".");if(!i||!p)return;let s=this.values.get(i);if(!Array.isArray(s))return;let d=r[t]??(t.startsWith('"')?t.slice(1,-1):this.get(t,a)),c=s.map(m=>T(o,m,this,r)?{...m,[p]:d}:m);this.set(i,c)}notify(n){this.subs.get(n)?.forEach(t=>t())}recomputeDepending(n){for(let t of this.computed)if(t.from.split(",").map(r=>r.trim()).includes(n)||Ln(t.where,n)){let r=this.evalComputed(t);this.values.set(t.name,r),this.notify(t.name),this.recomputeDepending(t.name)}}evalComputed(n){let t=this.values.get(n.from);if(n.op==="subtract"){let[r,a]=n.from.split(",").map(i=>z(this.values.get(i.trim())));return(r??0)-(a??0)}if(n.op==="add"){let[r,a]=n.from.split(",").map(i=>z(this.values.get(i.trim())));return(r??0)+(a??0)}if(n.op==="percent"){let[r,a]=n.from.split(",").map(i=>z(this.values.get(i.trim())));return a?Math.round((r??0)/a*100):0}if(n.op==="percent-of"){let[r,a]=n.from.split(",").map(i=>z(this.values.get(i.trim())));return(r??0)*(a??0)/100}if(n.op==="sum-product")return!n.field||!n.by||!Array.isArray(t)?0:(n.where?t.filter(a=>T(n.where,a,this)):t).reduce((a,i)=>a+z(i[n.field])*z(i[n.by]),0);if(!Array.isArray(t))return n.op==="count",0;let o=n.where?t.filter(r=>T(n.where,r,this)):t;if(n.op==="count")return o.length;if(n.op==="sum")return n.field?o.reduce((r,a)=>r+z(a[n.field]),0):0;if(n.op==="avg"){if(!n.field||o.length===0)return 0;let r=n.window?o.slice(-n.window):o,a=r.reduce((i,p)=>i+z(p[n.field]),0);return Math.round(a/r.length)}if(n.op==="min"||n.op==="max"){if(!n.field||o.length===0)return 0;let a=(n.window?o.slice(-n.window):o).map(i=>z(i[n.field]));return n.op==="min"?Math.min(...a):Math.max(...a)}if(n.op==="group-by"){if(!n.field||!n.by||!Array.isArray(t))return[];let r=new Map;for(let a of o){let i=String(a[n.by]??""),p=z(a[n.field]);r.set(i,(r.get(i)??0)+p)}return[...r.entries()].map(([a,i])=>({key:a,value:i})).sort((a,i)=>i.value-a.value)}if(n.op==="streak"){if(!Array.isArray(t))return 0;let r=[...t];n.by&&r.sort((i,p)=>String(p[n.by]).localeCompare(String(i[n.by])));let a=0;for(let i of r)if(n.where?T(n.where,i,this):!!i[n.field??""])a++;else break;return a}return o}};function z(e){return typeof e=="number"?e:typeof e=="string"&&parseFloat(e.replace(/[^0-9.\-]/g,""))||0}function K(e){switch(e){case"text":return"";case"number":return 0;case"boolean":return!1;case"list":case"record-list":return[];case"map":return{};default:return null}}function Y(e,n){return n==="number"?typeof e=="number"?e:parseFloat(String(e))||0:n==="boolean"?e===!0||e==="true":String(e??"")}function O(e,n){let t=n.split("."),o=e;for(let r of t){if(o==null||typeof o!="object")return"";o=o[r]}return o??""}function Rn(e,n,t){let o=n.split("."),r=e;for(let i=0;i<o.length-1;i++){let p=o[i];(r[p]==null||typeof r[p]!="object")&&(r[p]={}),r=r[p]}let a=o[o.length-1];a&&(r[a]=t)}function Ln(e,n){if(!e)return!1;let t=e.match(/^(\S+)\s*=\s*(.+)$/);if(!t)return!1;let o=t[2].trim();return o===n&&!o.startsWith('"')&&!o.startsWith("'")}function T(e,n,t,o){let r=e.match(/^(\S+)\s*=\s*(.+)$/);if(!r)return!0;let[,a,i]=r;if(!a||!i)return!0;let p=O(n,a),s,d=i.trim();return d.startsWith('"')&&d.endsWith('"')?s=d.slice(1,-1):d==="true"?s=!0:d==="false"?s=!1:o?.[d]!==void 0?s=o[d]:t.has(d)?s=t.get(d):s=d,s==="all"||s===""?!0:p===s}var j=class{opfsDir=null;useOpfs=!1;key;constructor(){this.key=Tn()}async init(){if(!("storage"in navigator)||!("getDirectory"in navigator.storage)){console.info("[mere] OPFS unavailable \u2014 using localStorage");return}try{let t=await(await navigator.storage.getDirectory()).getDirectoryHandle("mere",{create:!0});this.opfsDir=await t.getDirectoryHandle(this.key,{create:!0}),this.useOpfs=!0,console.info("[mere] Persistence: OPFS")}catch{console.info("[mere] OPFS init failed \u2014 using localStorage")}}async load(n){if(this.useOpfs&&this.opfsDir)try{let o=await(await this.opfsDir.getFileHandle(n+".json")).getFile();return JSON.parse(await o.text())}catch{return}else{let t=localStorage.getItem(I(this.key,n));return t!==null?JSON.parse(t):void 0}}async save(n,t){let o=JSON.stringify(t);if(this.useOpfs&&this.opfsDir)try{let a=await(await this.opfsDir.getFileHandle(n+".json",{create:!0})).createWritable();await a.write(o),await a.close()}catch(r){console.warn(`[mere] OPFS save failed for "${n}":`,r);try{localStorage.setItem(I(this.key,n),o)}catch{}}else try{localStorage.setItem(I(this.key,n),o)}catch{console.warn(`[mere] localStorage full \u2014 "${n}" not persisted`)}}};function Tn(){let e=location.href.replace(/[?#].*$/,""),n=5381;for(let t=0;t<e.length;t++)n=(n<<5)+n+e.charCodeAt(t)|0;return"wb-"+Math.abs(n).toString(36)}function I(e,n){return`mere:${e}:${n}`}function x(e,...n){let t=document.createElement("div");return t.classList.add("mp-"+e,...n.map(o=>"mp-"+o)),t}function L(e){let n=document.createElement("span");return n.classList.add("mp-"+e),n}var Fn=(e,n,t,o,r)=>{let a=x("screen");return r(a,e,n,t,o),a},Dn=(e,n,t,o,r)=>{let a=document.createElement("header");return a.classList.add("mp-header"),r(a,e,n,t,o),a},Mn=(e,n,t,o,r)=>{let a=document.createElement("footer");return a.classList.add("mp-footer"),r(a,e,n,t,o),a},Wn=(e,n,t,o)=>{let r=document.createElement("h2");return r.classList.add("mp-heading"),e.bindings.read?S(r,e.bindings.read,n,t,a=>{r.textContent=a}):M(r,e.text,n,t),r},jn=(e,n,t,o)=>{let r=L("subtitle");return e.bindings.read?S(r,e.bindings.read,n,t,a=>{r.textContent=a}):M(r,e.text,n,t),r},Nn=(e,n,t,o)=>{let r=document.createElement("p");return r.classList.add("mp-paragraph"),e.bindings.read?S(r,e.bindings.read,n,t,a=>{r.textContent=a}):M(r,e.text,n,t),r},Pn=(e,n,t,o)=>{let r=L("timestamp"),a=i=>{let p=new Date(i);r.textContent=isNaN(p.getTime())?i:en(p),r.title=i};return e.bindings.read?S(r,e.bindings.read,n,t,a):a(e.text),r},$n=(e,n,t,o)=>{let r=L("badge");return e.bindings.read?S(r,e.bindings.read,n,t,a=>{r.textContent=a,r.style.display=a==="0"||a===""?"none":""}):r.textContent=e.text,r},Hn=(e,n,t,o)=>{let r=x("avatar");return e.bindings.read&&S(r,e.bindings.read,n,t,a=>{a.startsWith("http")||a.startsWith("/")||a.startsWith("data:")?r.innerHTML=`<img src="${a}" alt="">`:r.textContent=a.slice(0,2).toUpperCase()}),r},Bn=(e,n,t,o)=>{let r=L("icon"),a=e.bindings.positional??e.bindings.literal??e.text;return r.dataset.icon=a,r.setAttribute("aria-label",a),r.textContent=ge(a),r},Gn=(e,n,t,o,r)=>{let a=x("tab-bar"),i=e.bindings.twoWay??"";for(let p of e.children){if(p.tag!=="tab")continue;let s=document.createElement("button");s.classList.add("mp-tab");let d=p.bindings.positional??p.bindings.literal??"";s.dataset.value=d,M(s,p.text,n,t);let c=()=>{let m=String(n.get(i,t));s.classList.toggle("mp-tab--active",m===d)};c(),i&&n.subscribe(i,c),s.addEventListener("click",()=>{i&&n.set(i,d)}),a.appendChild(s)}return a},On=(e,n,t,o,r)=>{let a=e.bindings.literal??e.bindings.positional??"bottom",i=document.createElement("nav");return i.classList.add("mp-navigation-bar",`mp-navigation-bar--${a}`),r(i,e,n,t,o),i},In=(e,n,t,o)=>{let r=document.createElement("button");r.classList.add("mp-nav-item");let a=Array.from(e._el?.attributes??[]),i=e.bindings.literal??e.bindings.positional??"";return r.dataset.target=i,r.textContent=e.text,e.bindings.action?P(r,e.bindings.action.name,e.bindings.action.args,n,t,o):i&&r.addEventListener("click",()=>o(i)),r};function V(e){return(n,t,o,r,a)=>{let i=x(e),p=n.bindings.read??"",s=n.children[0],d=()=>{if(i.innerHTML="",!p||!s)return;let c=t.get(p,o);if(Array.isArray(c))for(let m of c){let l={...o,item:m},g=nn(s,t,l,r);i.appendChild(g)}};return d(),p&&t.subscribe(p,d),i}}function Z(e){return(n,t,o,r,a)=>{let i=x(e);return i.setAttribute("role","button"),i.setAttribute("tabindex","0"),n.bindings.action&&(P(i,n.bindings.action.name,n.bindings.action.args,t,o,r),i.style.cursor="pointer"),a(i,n,t,o,r),i}}var Vn=(e,n,t,o,r)=>{let a=document.createElement("form");return a.classList.add("mp-form"),a.addEventListener("submit",i=>i.preventDefault()),r(a,e,n,t,o),a},qn=(e,n,t,o)=>{let r=x("field"),a=document.createElement("input");a.classList.add("mp-field__input");for(let[i,p]of Object.entries(e.attrs))a.setAttribute(i,p);return e.bindings.twoWay&&U(a,e.bindings.twoWay,n,t),r.appendChild(a),r},Un=(e,n,t,o)=>{let r=document.createElement("button");r.classList.add("mp-button"),r.textContent=e.text;for(let[a,i]of Object.entries(e.attrs))r.setAttribute(a,i);return e.bindings.action&&P(r,e.bindings.action.name,e.bindings.action.args,n,t,o),r},Xn=(e,n,t,o)=>{let r=document.createElement("label");r.classList.add("mp-toggle");let a=document.createElement("input");a.type="checkbox",a.classList.add("mp-toggle__input");let i=L("toggle__track"),p=L("toggle__label");if(p.textContent=e.text,e.bindings.twoWay){let s=e.bindings.twoWay,d=()=>{let c=n.get(s,t);a.checked=!!c};d(),n.subscribe(s,d),a.addEventListener("change",()=>n.set(s,a.checked))}return r.appendChild(a),r.appendChild(i),r.appendChild(p),r},Jn=(e,n,t,o)=>{let r=x("camera"),a=document.createElement("input");a.type="file",a.accept="image/*",a.setAttribute("capture",e.attrs.facing==="user"?"user":"environment"),a.classList.add("mp-camera__input");let i=document.createElement("label");i.classList.add("mp-camera__button"),i.textContent=e.text||"Take Photo",i.appendChild(a);let p=document.createElement("img");p.classList.add("mp-camera__preview"),p.hidden=!0,p.alt="";let s=L("camera__timestamp");if(e.bindings.twoWay){let d=e.bindings.twoWay,c=()=>{let m=n.get(d,t);m?.dataUrl?(p.src=m.dataUrl,p.hidden=!1,s.textContent=m.capturedAt?en(new Date(m.capturedAt)):""):(p.hidden=!0,p.removeAttribute("src"),s.textContent="")};c(),n.subscribe(d,c),a.addEventListener("change",()=>{let m=a.files?.[0];if(!m)return;let l=new FileReader;l.onload=()=>{n.set(d,{dataUrl:l.result,capturedAt:new Date().toISOString()})},l.readAsDataURL(m)})}return r.appendChild(i),r.appendChild(p),r.appendChild(s),r},Kn=(e,n,t,o,r)=>{let a=document.createElement("nav");return a.classList.add("mp-sidebar"),r(a,e,n,t,o),a},Yn=(e,n,t,o)=>{let r=x("sidebar-brand");return r.textContent=e.text,r},Zn=(e,n,t,o,r)=>{let a=x("sidebar-section"),i=e.attrs.label??e.bindings.literal??e.bindings.positional??"";if(i){let p=L("sidebar-label");p.textContent=i,a.appendChild(p)}return r(a,e,n,t,o),a},Qn=(e,n,t,o)=>{let r=x("data-table-wrap"),a=document.createElement("table");a.classList.add("mp-data-table");let i=e.bindings.read??"",p=e.children.filter(g=>g.tag==="column"),s=e.bindings.action,d=document.createElement("thead"),c=document.createElement("tr");for(let g of p){let w=document.createElement("th");w.textContent=g.attrs.label??g.attrs.field??"",c.appendChild(w)}d.appendChild(c),a.appendChild(d);let m=document.createElement("tbody");a.appendChild(m);let l=()=>{m.innerHTML="";let g=n.get(i,t);if(Array.isArray(g))for(let w of g){let f=w,v=document.createElement("tr");if(v.classList.add("mp-data-table__row"),s){v.style.cursor="pointer";let b={...t,item:f};v.addEventListener("click",()=>{let u=s.args.map(k=>n.get(k,b));n.invokeAction(s.name,s.args,u,o,b)})}for(let b of p){let u=document.createElement("td"),k=b.attrs.field??"",_=b.attrs.as??"",C=String(f[k]??"");if(_==="status-badge"){let h=document.createElement("span"),y=C.toLowerCase().replace(/[\s/]+/g,"-");h.classList.add("mp-status-badge",`mp-status-badge--${y}`),h.textContent=C,u.appendChild(h)}else if(_==="name-url"){let h=document.createElement("div");h.classList.add("mp-cell-name"),h.textContent=C;let y=document.createElement("div");y.classList.add("mp-cell-url"),y.textContent=String(f.url??""),u.appendChild(h),u.appendChild(y)}else if(_==="contact"){let h=document.createElement("div");h.classList.add("mp-cell-name"),h.textContent=C;let y=document.createElement("div");y.classList.add("mp-cell-url"),y.textContent=String(f[k+"-email"]??f.email??""),u.appendChild(h),u.appendChild(y)}else if(_==="currency")u.textContent=D(Number(f[k])||0),u.style.textAlign="right",u.style.fontVariantNumeric="tabular-nums";else if(_==="product"){let h=b.attrs.by??"",y=Number(f[k])||0,E=Number(f[h])||0;u.textContent=D(y*E),u.style.textAlign="right",u.style.fontVariantNumeric="tabular-nums"}else u.textContent=C;v.appendChild(u)}m.appendChild(v)}};return l(),i&&n.subscribe(i,l),r.appendChild(a),r},ne=(e,n,t,o)=>{let r=x("search-bar"),a=document.createElement("span");a.classList.add("mp-search-bar__icon"),a.textContent="\u2315";let i=document.createElement("input");i.classList.add("mp-search-bar__input"),i.type="search";for(let[p,s]of Object.entries(e.attrs))i.setAttribute(p,s);return e.bindings.twoWay&&U(i,e.bindings.twoWay,n,t),r.appendChild(a),r.appendChild(i),r},ee=(e,n,t,o)=>{let r=x("spreadsheet-wrap"),a=document.createElement("table");a.classList.add("mp-spreadsheet");let i=e.bindings.read??"",p=e.children.filter(l=>l.tag==="column"),s=document.createElement("thead"),d=document.createElement("tr");for(let l of p){let g=document.createElement("th");g.textContent=l.attrs.label??l.attrs.field??"",d.appendChild(g)}s.appendChild(d),a.appendChild(s);let c=document.createElement("tbody");a.appendChild(c);let m=()=>{c.innerHTML="";let l=n.get(i,t);Array.isArray(l)&&l.forEach((g,w)=>{let f=document.createElement("tr");f.classList.add("mp-spreadsheet__row");for(let v of p){let b=document.createElement("td"),u=v.attrs.field??"",k=v.attrs.format??"",_=g[u];if("editable"in v.attrs){let C=document.createElement("input");C.classList.add("mp-spreadsheet__input"),C.value=String(_??""),C.addEventListener("change",()=>{let h=n.get(i,t);if(!Array.isArray(h))return;let y=k==="currency"||k==="number"?parseFloat(C.value)||0:C.value;n.set(i,h.map((E,cn)=>cn===w?{...E,[u]:y}:E))}),b.appendChild(C)}else b.textContent=k==="currency"?D(Number(_)||0):String(_??"");f.appendChild(b)}c.appendChild(f)})};return m(),i&&n.subscribe(i,m),r.appendChild(a),r},te=(e,n,t,o)=>{let r=x("metric"),a=e.attrs.format??"",i=document.createElement("div");i.classList.add("mp-metric__value");let p=document.createElement("div");p.classList.add("mp-metric__label"),p.textContent=e.text;let s=d=>{let c=parseFloat(d)||0;a==="currency"?i.textContent=D(c):a==="percent"?i.textContent=`${c}%`:i.textContent=d};return e.bindings.read?S(i,e.bindings.read,n,t,s):s(e.text),r.appendChild(i),r.appendChild(p),r},re=(e,n,t,o,r)=>{let a=x("metric-group");return r(a,e,n,t,o),a},ae=(e,n,t,o)=>{let r=x("bar"),a=e.attrs.label??e.text,i=x("bar__header"),p=document.createElement("span");p.classList.add("mp-bar__label"),p.textContent=a;let s=document.createElement("span");s.classList.add("mp-bar__value"),i.appendChild(p),i.appendChild(s);let d=x("bar__track"),c=x("bar__fill");return d.appendChild(c),e.bindings.read&&S(r,e.bindings.read,n,t,m=>{let l=Math.min(100,Math.max(0,parseFloat(m)||0));c.style.width=`${l}%`,s.textContent=`${l}%`}),r.appendChild(i),r.appendChild(d),r},oe=(e,n,t,o)=>{let r=x("kv"),a=e.attrs.format??"",i=e.attrs.label??e.bindings.literal??e.bindings.positional??"",p=document.createElement("span");p.classList.add("mp-kv__label"),p.textContent=i;let s=document.createElement("span");s.classList.add("mp-kv__value");let d=c=>{let m=parseFloat(c)||0;a==="currency"?s.textContent=D(m):a==="percent"?s.textContent=`${m}%`:s.textContent=c};return e.bindings.read?S(s,e.bindings.read,n,t,d):d(e.text),r.appendChild(p),r.appendChild(s),r},ie=(e,n,t,o,r)=>{let a=x("modal");return a.setAttribute("role","dialog"),r(a,e,n,t,o),a},se=(e,n,t,o,r)=>{let a=x("toast");return a.setAttribute("role","status"),a.textContent=e.text,a},pe=(e,n,t,o,r)=>{let a=x("banner");return a.setAttribute("role","banner"),r(a,e,n,t,o),a},N=["var(--mp-accent)","#22c55e","#f59e0b","#ef4444","#8b5cf6","#06b6d4","#f97316","#ec4899"];function A(e,n){let t=document.createElementNS("http://www.w3.org/2000/svg",e);for(let[o,r]of Object.entries(n))t.setAttribute(o,String(r));return t}function R(e){return typeof e=="number"?e:parseFloat(String(e??0))||0}function me(e,n,t){let s=e.slice(0,9),d=s.length*31+16,c=A("svg",{viewBox:`0 0 280 ${d}`,width:"100%"}),m=Math.max(...s.map(g=>R(g[n])),1),l=184;return s.forEach((g,w)=>{let f=8+w*31,v=R(g[n]),b=String(g[t]??""),u=R(v/m*l);c.appendChild(A("rect",{x:80,y:f,width:l,height:26,rx:4,fill:"var(--mp-bg-secondary)"})),u>0&&c.appendChild(A("rect",{x:80,y:f,width:u,height:26,rx:4,fill:"var(--mp-accent)",opacity:.85}));let k=A("text",{x:74,y:f+26/2+4,"text-anchor":"end",fill:"var(--mp-text-secondary)","font-size":11,"font-family":"var(--mp-font)"});k.textContent=b.length>11?b.slice(0,10)+"\u2026":b,c.appendChild(k);let _=A("text",{x:80+u+5,y:f+26/2+4,fill:"var(--mp-text-secondary)","font-size":10,"font-family":"var(--mp-font)"});_.textContent=String(Math.round(v*10)/10),c.appendChild(_)}),c}function de(e,n){let a=A("svg",{viewBox:"0 0 280 120",width:"100%"}),i=e.slice(-30);if(i.length<2)return a;let p=i.map(b=>R(b[n])),s=Math.min(...p),d=Math.max(...p,s+1),c=248,m=88,l=b=>16+b/(i.length-1)*c,g=b=>16+m-(b-s)/(d-s)*m;for(let b=0;b<=2;b++){let u=16+b/2*m;a.appendChild(A("line",{x1:16,y1:u,x2:264,y2:u,stroke:"var(--mp-border)","stroke-width":1}))}let w=i.map((b,u)=>`${l(u)},${g(R(b[n]))}`).join(" "),f=A("polygon",{points:`16,${16+m} ${w} 264,${16+m}`,fill:"var(--mp-accent)",opacity:.08});a.appendChild(f);let v=A("polyline",{points:w,fill:"none",stroke:"var(--mp-accent)","stroke-width":2,"stroke-linejoin":"round","stroke-linecap":"round"});return a.appendChild(v),i.forEach((b,u)=>{a.appendChild(A("circle",{cx:l(u),cy:g(R(b[n])),r:3,fill:"var(--mp-accent)"}))}),a}function ce(e,n,t){let s=A("svg",{viewBox:"0 0 280 180",width:"100%"}),d=e.slice(0,8),c=d.reduce((l,g)=>l+R(g[n]),0);if(c===0)return s;let m=-Math.PI/2;return d.forEach((l,g)=>{let w=R(l[n]),f=w/c*Math.PI*2,v=100+72*Math.cos(m),b=90+72*Math.sin(m);m+=f;let u=100+72*Math.cos(m),k=90+72*Math.sin(m),_=f>Math.PI?1:0,C=A("path",{d:`M 100 90 L ${v} ${b} A 72 72 0 ${_} 1 ${u} ${k} Z`,fill:N[g%N.length],opacity:.9,stroke:"var(--mp-bg)","stroke-width":1.5});s.appendChild(C);let h=16+g*20;s.appendChild(A("circle",{cx:196,cy:h-4,r:5,fill:N[g%N.length]}));let y=A("text",{x:206,y:h,fill:"var(--mp-text-secondary)","font-size":10,"font-family":"var(--mp-font)"}),E=String(l[t]??"");y.textContent=(E.length>10?E.slice(0,9)+"\u2026":E)+`  ${Math.round(w/c*100)}%`,s.appendChild(y)}),s}var le=(e,n,t)=>{let o=e.attrs.type??"bar",r=e.attrs.from??e.bindings.read??"",a=e.attrs.field??"",i=e.attrs.label??"",p=e.attrs.where,s=x("chart");s.dataset.chartType=o;function d(){let c=p?n.filter(r,p):n.get(r,t),m=Array.isArray(c)?c:[];if(s.innerHTML="",m.length===0){let g=document.createElement("div");g.className="mp-chart-empty",g.textContent="No data",s.appendChild(g);return}let l=o==="pie"?ce(m,a,i):o==="line"?de(m,a):me(m,a,i);s.appendChild(l)}return d(),n.subscribe(r,d),s},q={"screen-root":Fn,header:Dn,footer:Mn,heading:Wn,subtitle:jn,paragraph:Nn,timestamp:Pn,badge:$n,avatar:Hn,icon:Bn,"tab-bar":Gn,tab:()=>x("tab"),"navigation-bar":On,"nav-item":In,"message-list":V("message-list"),"card-list":V("card-list"),list:V("list"),"message-card":Z("message-card"),card:Z("card"),form:Vn,field:qn,button:Un,toggle:Xn,camera:Jn,modal:ie,toast:se,banner:pe,sidebar:Kn,"sidebar-brand":Yn,"sidebar-section":Zn,"data-table":Qn,column:()=>{let e=document.createElement("span");return e.style.display="none",e},"search-bar":ne,spreadsheet:ee,metric:te,"metric-group":re,bar:ae,kv:oe,chart:le};function nn(e,n,t,o){let r=q[e.tag];if(r)return r(e,n,t,o,Q);let a=document.createElement("div");return a.dataset.tag=e.tag,Q(a,e,n,t,o),a}function Q(e,n,t,o,r){for(let a of n.children)e.appendChild(nn(a,t,o,r));n.text&&n.children.length===0&&(e.textContent=n.text)}function en(e){let n=Date.now()-e.getTime(),t=Math.floor(n/6e4);if(t<1)return"just now";if(t<60)return`${t}m ago`;let o=Math.floor(t/60);if(o<24)return`${o}h ago`;let r=Math.floor(o/24);return r<7?`${r}d ago`:e.toLocaleDateString()}function D(e){return new Intl.NumberFormat("en-US",{style:"currency",currency:"USD",maximumFractionDigits:0}).format(e)}function ge(e){return{inbox:"\u2709",starred:"\u2605",star:"\u2605",settings:"\u2699",archive:"\u2193","arrow-left":"\u2190",back:"\u2190",search:"\u2315",compose:"\u270E",close:"\u2715",check:"\u2713",menu:"\u2261",more:"\u2026"}[e]??"\u25CB"}function $(e,n,t,o){let r=q[e.tag];if(r)return r(e,n,t,o,tn);let a=document.createElement("div");return a.dataset.tag=e.tag,a.classList.add("mp-unknown"),tn(a,e,n,t,o),a}function tn(e,n,t,o,r){for(let a of n.children)e.appendChild($(a,t,o,r));n.text&&n.children.length===0&&(e.textContent=n.text)}function ue(e,n,t){let o=n.get(e,t);return o==null?"":typeof o=="object"?JSON.stringify(o):String(o)}function S(e,n,t,o,r){let a=()=>r(ue(n,t,o));return a(),t.subscribe(n,a),()=>t.unsubscribe(n,a)}function M(e,n,t,o){let r=[...n.matchAll(/@([\w-]+(?:\.[\w-]+)*)/g)].map(i=>i[1]);if(r.length===0){e.textContent=n;return}let a=()=>{e.textContent=n.replace(/@([\w-]+(?:\.[\w-]+)*)/g,(i,p)=>String(t.get(p,o)??""))};a();for(let i of[...new Set(r)])t.subscribe(i,a)}function U(e,n,t,o){let r=()=>{let a=t.get(n,o);e.value=a==null?"":String(a)};r(),t.subscribe(n,r),e.addEventListener("change",()=>t.set(n,e.value)),e.addEventListener("input",()=>t.set(n,e.value))}function P(e,n,t,o,r,a){e.addEventListener("click",()=>{let i=t.map(p=>o.get(p,r));o.invokeAction(n,t,i,a,r),console.log(`[mere] action: ${n}`,t,i)})}var rn=`/* \u2500\u2500 Mere: classic-light theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 :root {
   --mp-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
@@ -1756,6 +442,52 @@ var Mere = (() => {
   color: var(--mp-text);
 }
 
+/* \u2500\u2500 Camera \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-camera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-sm);
+}
+
+.mp-camera__button {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse);
+  background: var(--mp-accent);
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer;
+  transition: background var(--mp-transition);
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+
+.mp-camera__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mp-camera__preview {
+  width: 100%;
+  border-radius: var(--mp-radius-sm);
+  box-shadow: var(--mp-shadow-sm);
+}
+
+.mp-camera__timestamp {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-tertiary);
+}
+
 /* \u2500\u2500 Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 
 .mp-modal {
@@ -2172,10 +904,7 @@ var Mere = (() => {
   font-family: var(--mp-font-mono, monospace);
   letter-spacing: -0.01em;
 }
-`;
-
-  // src/themes/proton-mail.css
-  var proton_mail_default = `/* \u2500\u2500 Mere: proton-mail theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+`;var an=`/* \u2500\u2500 Mere: proton-mail theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 /* Clean, minimal, Swiss-influenced. Generous whitespace. Proton purple accent. */
 
 :root {
@@ -2418,6 +1147,18 @@ var Mere = (() => {
 .mp-toggle__input:checked + .mp-toggle__track { background: var(--mp-accent); }
 .mp-toggle__input:checked + .mp-toggle__track::after { transform: translateX(18px); }
 .mp-toggle__label { font-size: var(--mp-text-base); color: var(--mp-text); }
+
+.mp-camera { display: flex; flex-direction: column; gap: var(--mp-space-sm); }
+.mp-camera__button {
+  font-family: var(--mp-font); font-size: var(--mp-text-base); font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse); background: var(--mp-accent); border-radius: var(--mp-radius-sm);
+  padding: 10px var(--mp-space-lg); cursor: pointer; width: 100%; min-height: 42px;
+  transition: background var(--mp-transition); display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+.mp-camera__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-camera__preview { width: 100%; border-radius: var(--mp-radius-sm); }
+.mp-camera__timestamp { font-size: var(--mp-text-sm); color: var(--mp-text-tertiary); }
 
 .mp-modal { position: fixed; inset: 0; background: rgba(28,27,35,.5); display: flex; align-items: flex-end; z-index: 100; }
 .mp-modal > * { width: 100%; max-height: 80dvh; background: var(--mp-bg); border-radius: var(--mp-radius-lg) var(--mp-radius-lg) 0 0; padding: var(--mp-space-xl); overflow-y: auto; }
@@ -2792,10 +1533,7 @@ var Mere = (() => {
   font-family: var(--mp-font-mono, monospace);
   letter-spacing: -0.01em;
 }
-`;
-
-  // src/themes/brutalist.css
-  var brutalist_default = `/* \u2500\u2500 Mere: brutalist theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+`;var on=`/* \u2500\u2500 Mere: brutalist theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
 /* Hard edges. Heavy type. No shadows. No radius. Aggressive contrast.         */
 /* Inspired by: brutalist.website, early web, raw industrial design.            */
 
@@ -3049,6 +1787,18 @@ var Mere = (() => {
 .mp-toggle__input:checked + .mp-toggle__track { background: #000; }
 .mp-toggle__input:checked + .mp-toggle__track::after { transform: translateX(18px); background: #fff; }
 .mp-toggle__label { font-size: var(--mp-text-base); font-weight: 900; color: #000; text-transform: uppercase; }
+
+.mp-camera { display: flex; flex-direction: column; gap: var(--mp-space-sm); }
+.mp-camera__button {
+  font-family: var(--mp-font); font-size: var(--mp-text-base); font-weight: 900;
+  color: #fff; background: #000; border: 3px solid #000;
+  padding: var(--mp-space-sm) var(--mp-space-lg); cursor: pointer; width: 100%; min-height: 44px;
+  text-transform: uppercase; letter-spacing: 0.06em; display: flex; align-items: center; justify-content: center; text-align: center;
+}
+.mp-camera__button:hover { background: var(--mp-accent); border-color: var(--mp-accent); }
+.mp-camera__input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mp-camera__preview { width: 100%; border: 3px solid #000; }
+.mp-camera__timestamp { font-size: var(--mp-text-sm); font-weight: 700; color: #000; }
 
 .mp-modal { position: fixed; inset: 0; background: rgba(0,0,0,.8); display: flex; align-items: flex-end; z-index: 100; }
 .mp-modal > * { width: 100%; max-height: 80dvh; background: #fff; border-top: 4px solid #000; padding: var(--mp-space-xl); overflow-y: auto; }
@@ -3423,102 +2173,922 @@ var Mere = (() => {
   font-family: var(--mp-font-mono, monospace);
   letter-spacing: -0.01em;
 }
-`;
+`;var sn=`/* \u2500\u2500 Mere: warm-brutalist theme \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* Phase 1 + Phase 2 \u2014 full element coverage.                                   */
+/*                                                                              */
+/* Palette and typographic character ported from shatny.dev's "warm brutalism" */
+/* (see /Users/dev/workspace/shatny-dev/colophon.html) \u2014 parchment background,  */
+/* ink text, a single restrained indigo accent. Poppins/JetBrains Mono are     */
+/* named as local-font preferences only (same pattern proton-mail already uses */
+/* for Inter) \u2014 never @imported, so this stays offline-safe like every other   */
+/* Mere theme: no font loads over the network regardless of what's installed.  */
 
-  // src/runtime/index.ts
-  var THEMES = {
-    "classic-light": classic_light_default,
-    "proton-mail": proton_mail_default,
-    "brutalist": brutalist_default
-  };
-  async function bootstrap(workbookEl) {
-    const decl = parseWorkbook(workbookEl);
-    injectTheme(decl.theme);
-    const store = new Store();
-    store.init(decl);
-    store.actions = new Map(decl.actions.map((a) => [a.name, a]));
-    const hasPersisted = decl.state.some((s) => s.persist);
-    if (hasPersisted) {
-      const persist = new Persist();
-      await persist.init();
-      await store.loadPersisted(persist);
-    }
-    const screenMap = new Map(decl.screens.map((s) => [s.name, s]));
-    let currentScreenEl = null;
-    const firstScreen = decl.screens[0]?.name ?? "";
-    const host = document.createElement("div");
-    host.classList.add("mp-workbook");
-    if (decl.layout === "full") host.dataset["layout"] = "full";
-    workbookEl.replaceWith(host);
-    let renderTarget = host;
-    let sidebarSlot = null;
-    if (decl.layout === "full") {
-      const inner = document.createElement("div");
-      inner.classList.add("mp-layout-inner");
-      host.appendChild(inner);
-      sidebarSlot = document.createElement("div");
-      sidebarSlot.classList.add("mp-sidebar-slot");
-      inner.appendChild(sidebarSlot);
-      const main = document.createElement("div");
-      main.classList.add("mp-main");
-      inner.appendChild(main);
-      renderTarget = main;
-    }
-    function goTo(screenName) {
-      const screen = screenMap.get(screenName);
-      if (!screen) {
-        console.warn(`[mere] Unknown screen: ${screenName}`);
-        return;
-      }
-      if (currentScreenEl) currentScreenEl.remove();
-      const el = renderNode(screen.root, store, {}, goTo);
-      renderTarget.appendChild(el);
-      currentScreenEl = el;
-      host.querySelectorAll(".mp-nav-item[data-target]").forEach((btn) => {
-        btn.classList.toggle("mp-nav-item--active", btn.dataset["target"] === screenName);
-      });
-    }
-    if (decl.layout === "full" && decl.sidebar && sidebarSlot) {
-      const sidebarEl = renderNode(decl.sidebar, store, {}, goTo);
-      sidebarSlot.appendChild(sidebarEl);
-    }
-    if (decl.screens.length > 0) {
-      goTo(firstScreen);
-    } else {
-      console.warn("[mere] No screens found in workbook.");
-    }
-    console.log(`[mere] Loaded. Theme: ${decl.theme}. Screens: ${[...screenMap.keys()].join(", ")}`);
-    window["__mereStore"] = store;
-  }
-  function injectTheme(name) {
-    const css = THEMES[name];
-    if (!css) {
-      console.warn(`[mere] Unknown theme: "${name}". Falling back to classic-light.`);
-      injectTheme("classic-light");
-      return;
-    }
-    if (document.querySelector(`style[data-mere-theme="${name}"]`)) return;
-    const style = document.createElement("style");
-    style.dataset["mereTheme"] = name;
-    style.textContent = css;
-    document.head.appendChild(style);
-  }
-  function init() {
-    const workbookEl = document.querySelector("workbook");
-    if (workbookEl) {
-      bootstrap(workbookEl);
-    } else {
-      console.warn("[mere] No <workbook> element found in document.");
-    }
-  }
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-  return __toCommonJS(index_exports);
-})();
-//# sourceMappingURL=mere-runtime.js.map
+:root {
+  --mp-font: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  --mp-font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+  /* Palette */
+  --mp-bg: #F7F0DA;
+  --mp-bg-secondary: #FDF8EE;
+  --mp-bg-hover: #F1E7C7;
+  --mp-bg-active: #EADFB8;
+  --mp-border: #E4D9B4;
+  --mp-border-strong: #C9B98A;
+
+  --mp-text: #26303F;
+  --mp-text-secondary: #3C4655;
+  --mp-text-tertiary: #7D7A6F;
+  --mp-text-inverse: #FDF8EE;
+
+  --mp-accent: #5548D9;
+  --mp-accent-hover: #443AC0;
+  --mp-accent-subtle: #E8E6FA;
+
+  --mp-danger: #C0522A;
+  --mp-success: #3A8F6A;
+
+  /* Geometry \u2014 a "medium" register: heavier borders than classic-light's      */
+  /* hairlines, but generously rounded rather than brutalist's zero-radius.    */
+  --mp-radius-sm: 8px;
+  --mp-radius: 12px;
+  --mp-radius-lg: 16px;
+
+  --mp-space-xs: 4px;
+  --mp-space-sm: 8px;
+  --mp-space-md: 14px;
+  --mp-space-lg: 20px;
+  --mp-space-xl: 28px;
+
+  --mp-shadow-sm: 0 1px 3px rgba(38,48,63,.10), 0 1px 2px rgba(38,48,63,.06);
+  --mp-shadow: 0 2px 8px rgba(38,48,63,.12), 0 1px 3px rgba(38,48,63,.07);
+
+  /* Typography */
+  --mp-text-xs: 11px;
+  --mp-text-sm: 13px;
+  --mp-text-base: 15px;
+  --mp-text-lg: 17px;
+  --mp-text-xl: 20px;
+  --mp-text-2xl: 24px;
+
+  --mp-weight-normal: 400;
+  --mp-weight-medium: 500;
+  --mp-weight-semibold: 600;
+  --mp-weight-bold: 800;
+
+  /* Motion */
+  --mp-transition: 150ms ease;
+}
+
+/* \u2500\u2500 Reset / base \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-workbook,
+.mp-workbook * {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mp-workbook {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  color: var(--mp-text);
+  background: var(--mp-bg);
+  width: 100%;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* \u2500\u2500 Screen \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  background: var(--mp-bg);
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* \u2500\u2500 Header \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mp-space-sm);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  background: var(--mp-bg);
+  border-bottom: 1.5px solid var(--mp-border);
+  min-height: 56px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Header buttons are auto-width and compact */
+.mp-header .mp-button {
+  width: auto;
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: var(--mp-text-sm);
+}
+
+/* \u2500\u2500 Heading \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-heading {
+  font-size: var(--mp-text-xl);
+  font-weight: var(--mp-weight-bold);
+  color: var(--mp-text);
+  letter-spacing: -0.01em;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.mp-header .mp-heading {
+  font-size: var(--mp-text-lg);
+  font-weight: var(--mp-weight-bold);
+}
+
+/* \u2500\u2500 Subtitle \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-subtitle {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* \u2500\u2500 Paragraph \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-paragraph {
+  font-size: var(--mp-text-base);
+  color: var(--mp-text);
+  line-height: 1.6;
+  margin: var(--mp-space-sm) 0;
+}
+
+/* \u2500\u2500 Badge \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: var(--mp-accent);
+  color: var(--mp-text-inverse);
+  font-size: var(--mp-text-xs);
+  font-weight: var(--mp-weight-bold);
+  border-radius: 10px;
+  line-height: 1;
+}
+
+/* \u2500\u2500 Card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* Cards sit on --mp-bg-secondary (lighter than the page) rather than matching  */
+/* --mp-bg the way classic-light's cards do \u2014 "paper on a desk," carried over   */
+/* deliberately from the source design's bg/surface split.                     */
+
+.mp-card {
+  background: var(--mp-bg-secondary);
+  border: 1.5px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  padding: var(--mp-space-lg);
+  margin: var(--mp-space-md) var(--mp-space-lg);
+  box-shadow: var(--mp-shadow-sm);
+  transition: box-shadow var(--mp-transition);
+}
+
+.mp-card:hover { box-shadow: var(--mp-shadow); }
+
+.mp-card .mp-header {
+  border: none;
+  padding: 0;
+  margin-bottom: var(--mp-space-md);
+  position: static;
+  background: transparent;
+}
+
+/* \u2500\u2500 Form & inputs \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-lg);
+}
+
+.mp-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-xs);
+}
+
+.mp-field__input {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  color: var(--mp-text);
+  background: var(--mp-bg-secondary);
+  border: 1.5px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-md);
+  width: 100%;
+  outline: none;
+  transition: border-color var(--mp-transition), box-shadow var(--mp-transition);
+}
+
+.mp-field__input:focus {
+  border-color: var(--mp-accent);
+  box-shadow: 0 0 0 3px rgba(85, 72, 217, 0.14);
+}
+
+.mp-field__input::placeholder { color: var(--mp-text-tertiary); }
+
+/* \u2500\u2500 Button \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-button {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse);
+  background: var(--mp-accent);
+  border: none;
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer;
+  transition: background var(--mp-transition);
+  width: 100%;
+  min-height: 44px;
+}
+
+.mp-button:hover { background: var(--mp-accent-hover); }
+.mp-button:active { transform: scale(0.98); }
+
+/* \u2500\u2500 Toggle \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  cursor: pointer;
+}
+
+.mp-toggle__input { position: absolute; opacity: 0; width: 0; height: 0; }
+
+.mp-toggle__track {
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  background: var(--mp-border-strong);
+  border-radius: 13px;
+  position: relative;
+  transition: background var(--mp-transition);
+  flex-shrink: 0;
+}
+
+.mp-toggle__track::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 20px;
+  height: 20px;
+  background: var(--mp-bg-secondary);
+  border-radius: 50%;
+  box-shadow: var(--mp-shadow-sm);
+  transition: transform var(--mp-transition);
+}
+
+.mp-toggle__input:checked + .mp-toggle__track {
+  background: var(--mp-accent);
+}
+
+.mp-toggle__input:checked + .mp-toggle__track::after {
+  transform: translateX(18px);
+}
+
+.mp-toggle__label {
+  font-size: var(--mp-text-base);
+  color: var(--mp-text);
+}
+
+/* \u2500\u2500 Timestamp \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-timestamp {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-tertiary);
+  white-space: nowrap;
+}
+
+/* \u2500\u2500 Avatar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--mp-accent-subtle);
+  color: var(--mp-accent);
+  font-size: var(--mp-text-sm);
+  font-weight: var(--mp-weight-semibold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.mp-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* \u2500\u2500 Icon \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 16px;
+  color: var(--mp-text-secondary);
+}
+
+/* \u2500\u2500 Tab bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: var(--mp-space-xs) var(--mp-space-lg);
+  background: var(--mp-bg);
+  border-bottom: 1.5px solid var(--mp-border);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mp-tab-bar::-webkit-scrollbar { display: none; }
+
+.mp-tab {
+  flex: 1;
+  padding: var(--mp-space-sm) var(--mp-space-md);
+  background: none;
+  border: none;
+  border-radius: var(--mp-radius-sm);
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  font-weight: var(--mp-weight-medium);
+  color: var(--mp-text-secondary);
+  cursor: pointer;
+  transition: background var(--mp-transition), color var(--mp-transition);
+  white-space: nowrap;
+}
+
+.mp-tab:hover {
+  background: var(--mp-bg-hover);
+  color: var(--mp-text);
+}
+
+.mp-tab--active {
+  background: var(--mp-accent-subtle);
+  color: var(--mp-accent);
+  font-weight: var(--mp-weight-semibold);
+}
+
+/* \u2500\u2500 Navigation bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-navigation-bar {
+  display: flex;
+  gap: 0;
+  background: var(--mp-bg);
+  border-top: 1.5px solid var(--mp-border);
+  padding: var(--mp-space-xs) 0;
+  padding-bottom: calc(var(--mp-space-xs) + env(safe-area-inset-bottom, 0px));
+  margin-top: auto;
+}
+
+.mp-navigation-bar--top {
+  border-top: none;
+  border-bottom: 1.5px solid var(--mp-border);
+  margin-top: 0;
+}
+
+.mp-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: var(--mp-space-xs) var(--mp-space-sm);
+  background: none;
+  border: none;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-tertiary);
+  cursor: pointer;
+  transition: color var(--mp-transition);
+  min-height: 48px;
+}
+
+.mp-nav-item:hover { color: var(--mp-accent); }
+
+/* \u2500\u2500 Lists \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-message-list,
+.mp-card-list,
+.mp-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* \u2500\u2500 Message card \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-message-card {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 2px var(--mp-space-md);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  border-bottom: 1.5px solid var(--mp-border);
+  background: var(--mp-bg);
+  transition: background var(--mp-transition);
+  align-items: start;
+}
+
+.mp-message-card:hover { background: var(--mp-bg-hover); }
+.mp-message-card:active { background: var(--mp-bg-active); }
+
+.mp-message-card .mp-avatar { grid-row: 1 / 3; }
+.mp-message-card .mp-heading { font-size: var(--mp-text-base); font-weight: var(--mp-weight-semibold); }
+.mp-message-card .mp-subtitle { grid-column: 2; }
+.mp-message-card .mp-timestamp { grid-row: 1; }
+
+/* \u2500\u2500 Camera \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-camera {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mp-space-sm);
+}
+
+.mp-camera__button {
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-semibold);
+  color: var(--mp-text-inverse);
+  background: var(--mp-accent);
+  border-radius: var(--mp-radius-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  cursor: pointer;
+  transition: background var(--mp-transition);
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.mp-camera__button:hover { background: var(--mp-accent-hover); }
+
+.mp-camera__input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mp-camera__preview {
+  width: 100%;
+  border-radius: var(--mp-radius-sm);
+  box-shadow: var(--mp-shadow-sm);
+}
+
+.mp-camera__timestamp {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-tertiary);
+}
+
+/* \u2500\u2500 Modal \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(38,48,63,.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+
+.mp-modal > * {
+  width: 100%;
+  max-height: 80dvh;
+  background: var(--mp-bg-secondary);
+  border-radius: var(--mp-radius-lg) var(--mp-radius-lg) 0 0;
+  padding: var(--mp-space-xl);
+  overflow-y: auto;
+}
+
+/* \u2500\u2500 Toast \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-toast {
+  position: fixed;
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--mp-text);
+  color: var(--mp-text-inverse);
+  font-size: var(--mp-text-sm);
+  padding: var(--mp-space-sm) var(--mp-space-lg);
+  border-radius: var(--mp-radius);
+  box-shadow: var(--mp-shadow);
+  z-index: 200;
+  white-space: nowrap;
+}
+
+/* \u2500\u2500 Banner \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* Same left-accent-border + tinted-fill motif as the source design's pull-quote */
+/* (see colophon.html .pull) \u2014 right-side corners rounded, left edge square      */
+/* against the accent border.                                                    */
+
+.mp-banner {
+  background: var(--mp-accent-subtle);
+  border-left: 4px solid var(--mp-accent);
+  border-radius: 0 var(--mp-radius) var(--mp-radius) 0;
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  font-size: var(--mp-text-sm);
+  font-weight: var(--mp-weight-medium);
+  color: var(--mp-text);
+}
+
+/* \u2500\u2500 Full / dashboard layout \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-workbook[data-layout="full"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.mp-layout-inner {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.mp-sidebar-slot { display: contents; }
+
+.mp-sidebar {
+  width: 240px;
+  flex-shrink: 0;
+  background: var(--mp-bg-secondary);
+  border-right: 1.5px solid var(--mp-border);
+  padding: 8px 0 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.mp-sidebar-brand {
+  font-size: var(--mp-text-base);
+  font-weight: var(--mp-weight-bold);
+  color: var(--mp-text);
+  padding: 16px 20px 12px;
+  border-bottom: 1.5px solid var(--mp-border);
+  margin-bottom: 8px;
+}
+
+.mp-sidebar-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 4px;
+}
+
+.mp-sidebar-label {
+  display: block;
+  font-size: var(--mp-text-xs);
+  font-weight: var(--mp-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mp-text-tertiary);
+  padding: 8px 20px 4px;
+}
+
+.mp-sidebar .mp-nav-item {
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: var(--mp-space-sm);
+  padding: 8px 12px;
+  border-radius: var(--mp-radius-sm);
+  margin: 1px 8px;
+  min-height: 34px;
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+  width: auto;
+}
+
+.mp-sidebar .mp-nav-item:hover {
+  background: var(--mp-bg-hover);
+  color: var(--mp-text);
+}
+
+.mp-sidebar .mp-nav-item--active {
+  background: var(--mp-accent-subtle);
+  color: var(--mp-accent);
+  font-weight: var(--mp-weight-semibold);
+}
+
+.mp-main {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--mp-bg);
+  min-width: 0;
+}
+
+.mp-main .mp-screen {
+  max-width: none;
+  margin: 0;
+  min-height: 100%;
+}
+
+/* \u2500\u2500 Data table \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-data-table-wrap {
+  overflow-x: auto;
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-text-sm);
+}
+
+.mp-data-table th {
+  font-size: var(--mp-text-xs);
+  font-weight: var(--mp-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mp-text-tertiary);
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1.5px solid var(--mp-border);
+  white-space: nowrap;
+}
+
+.mp-data-table td {
+  padding: 12px 12px;
+  border-bottom: 1.5px solid var(--mp-border);
+  vertical-align: middle;
+  color: var(--mp-text);
+}
+
+.mp-data-table__row:hover td { background: var(--mp-bg-secondary); }
+.mp-data-table__row { cursor: pointer; }
+
+.mp-cell-name {
+  font-weight: var(--mp-weight-medium);
+  color: var(--mp-text);
+}
+
+.mp-cell-url {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-tertiary);
+  margin-top: 2px;
+}
+
+/* \u2500\u2500 Status badge \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+/* Colors borrowed from the source design's own semantic palette (teal=success,   */
+/* coral=danger, gold=warning) rather than generic red/green, so this stays       */
+/* in-family instead of importing an unrelated palette.                          */
+
+.mp-status-badge {
+  display: inline-block;
+  font-size: var(--mp-text-xs);
+  font-weight: var(--mp-weight-medium);
+  padding: 3px 10px;
+  border-radius: 100px;
+  background: var(--mp-bg-secondary);
+  color: var(--mp-text-secondary);
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.mp-status-badge--active,
+.mp-status-badge--approved { background: rgba(58,143,106,.14); color: #3A8F6A; }
+
+.mp-status-badge--inactive,
+.mp-status-badge--cancelled { background: rgba(125,122,111,.14); color: #7D7A6F; }
+
+.mp-status-badge--suspended,
+.mp-status-badge--terminated { background: rgba(192,82,42,.14); color: #C0522A; }
+
+.mp-status-badge--pending { background: rgba(168,120,0,.14); color: #A87800; }
+
+/* \u2500\u2500 Search bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-search-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--mp-bg);
+  border: 1.5px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+  padding: 0 12px;
+  height: 36px;
+  max-width: 400px;
+}
+
+.mp-search-bar__icon { color: var(--mp-text-tertiary); font-size: 16px; flex-shrink: 0; }
+
+.mp-search-bar__input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text);
+}
+
+.mp-search-bar__input::placeholder { color: var(--mp-text-tertiary); }
+
+/* \u2500\u2500 Toolbar strip (search + actions) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  flex-wrap: wrap;
+}
+
+/* \u2500\u2500 Spreadsheet \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-spreadsheet-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1.5px solid var(--mp-border);
+  border-radius: var(--mp-radius-sm);
+}
+
+.mp-spreadsheet {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--mp-text-sm);
+}
+
+.mp-spreadsheet thead th {
+  background: var(--mp-bg-secondary);
+  color: var(--mp-text-secondary);
+  font-weight: 500;
+  font-size: var(--mp-text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 8px 12px;
+  border-bottom: 1.5px solid var(--mp-border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.mp-spreadsheet__row {
+  border-bottom: 1.5px solid var(--mp-border);
+}
+
+.mp-spreadsheet__row:last-child { border-bottom: none; }
+
+.mp-spreadsheet__row td {
+  padding: 6px 12px;
+  color: var(--mp-text);
+  vertical-align: middle;
+}
+
+.mp-spreadsheet__input {
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--mp-font);
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text);
+  padding: 2px 0;
+  min-width: 80px;
+}
+
+.mp-spreadsheet__input:focus {
+  background: var(--mp-accent-subtle);
+  border-radius: 3px;
+  padding: 2px 4px;
+}
+
+/* \u2500\u2500 Metric \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-metric-group {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--mp-space-md);
+  padding: var(--mp-space-md) 0;
+}
+
+.mp-metric {
+  background: var(--mp-bg-secondary);
+  border: 1.5px solid var(--mp-border);
+  border-radius: var(--mp-radius);
+  padding: var(--mp-space-md) var(--mp-space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mp-metric__value {
+  font-size: var(--mp-text-2xl);
+  font-weight: var(--mp-weight-bold);
+  color: var(--mp-text);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.mp-metric__label {
+  font-size: var(--mp-text-xs);
+  color: var(--mp-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 500;
+}
+
+/* \u2500\u2500 Bar \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: var(--mp-space-sm) 0;
+}
+
+.mp-bar__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.mp-bar__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-bar__value {
+  font-size: var(--mp-text-xs);
+  font-weight: 600;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+}
+
+.mp-bar__track {
+  height: 8px;
+  background: var(--mp-bg-active);
+  border-radius: 100px;
+  overflow: hidden;
+}
+
+.mp-bar__fill {
+  height: 100%;
+  background: var(--mp-accent);
+  border-radius: 100px;
+  transition: width 0.4s ease;
+}
+
+/* \u2500\u2500 Key-value row \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500 */
+
+.mp-kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 7px 0;
+  border-bottom: 1.5px solid var(--mp-border);
+}
+
+.mp-kv:last-of-type { border-bottom: none; }
+
+.mp-kv__label {
+  font-size: var(--mp-text-sm);
+  color: var(--mp-text-secondary);
+}
+
+.mp-kv__value {
+  font-size: var(--mp-text-sm);
+  font-weight: 500;
+  color: var(--mp-text);
+  font-family: var(--mp-font-mono, monospace);
+  letter-spacing: -0.01em;
+}
+`;var be={"classic-light":rn,"proton-mail":an,brutalist:on,"warm-brutalist":sn};async function mn(e){let n=X(e);dn(n.theme);let t=new W;if(t.init(n),t.actions=new Map(n.actions.map(m=>[m.name,m])),n.state.some(m=>m.persist)){let m=new j;await m.init(),await t.loadPersisted(m)}let r=new Map(n.screens.map(m=>[m.name,m])),a=null,i=n.screens[0]?.name??"",p=document.createElement("div");p.classList.add("mp-workbook"),n.layout==="full"&&(p.dataset.layout="full"),e.replaceWith(p);let s=p,d=null;if(n.layout==="full"){let m=document.createElement("div");m.classList.add("mp-layout-inner"),p.appendChild(m),d=document.createElement("div"),d.classList.add("mp-sidebar-slot"),m.appendChild(d);let l=document.createElement("div");l.classList.add("mp-main"),m.appendChild(l),s=l}function c(m,l){let g=r.get(m);if(!g){console.warn(`[mere] Unknown screen: ${m}`);return}a&&a.remove();let w=l?{...l}:{},f=$(g.root,t,w,c);s.appendChild(f),a=f,p.querySelectorAll(".mp-nav-item[data-target]").forEach(v=>{v.classList.toggle("mp-nav-item--active",v.dataset.target===m)})}if(n.layout==="full"&&n.sidebar&&d){let m=$(n.sidebar,t,{},c);d.appendChild(m)}n.screens.length>0?c(i):console.warn("[mere] No screens found in workbook."),console.log(`[mere] Loaded. Theme: ${n.theme}. Screens: ${[...r.keys()].join(", ")}`),window.__mereStore=t}function dn(e){let n=be[e];if(!n){console.warn(`[mere] Unknown theme: "${e}". Falling back to classic-light.`),dn("classic-light");return}if(document.querySelector(`style[data-mere-theme="${e}"]`))return;let t=document.createElement("style");t.dataset.mereTheme=e,t.textContent=n,document.head.appendChild(t)}function pn(){let e=document.querySelector("workbook");e?mn(e):console.warn("[mere] No <workbook> element found in document.")}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",pn):pn();return xn(fe);})();
 
 </script>
 </head>
@@ -3527,15 +3097,15 @@ var Mere = (() => {
 <workbook theme="classic-light">
 
   <state>
-    <value name="current-tab" type="text" default="inbox"/>
-    <value name="messages" type="list"/>
-    <value name="selected-message" type="map"/>
-    <value name="reply-draft" type="text" default=""/>
+    <value name="current-tab" type="text" default="inbox"></value>
+    <value name="messages" type="list"></value>
+    <value name="selected-message" type="map"></value>
+    <value name="reply-draft" type="text" default=""></value>
   </state>
 
   <computed>
-    <value name="visible-messages" from="messages" where="folder = current-tab"/>
-    <value name="unread-count" from="messages" where="read = false" op="count"/>
+    <value name="visible-messages" from="messages" where="folder = current-tab"></value>
+    <value name="unread-count" from="messages" where="read = false" op="count"></value>
   </computed>
 
   <actions>
@@ -3558,7 +3128,7 @@ var Mere = (() => {
 
     <header>
       <heading>Inbox</heading>
-      <badge @unread-count/>
+      <badge @unread-count></badge>
     </header>
 
     <tab-bar ~current-tab>
@@ -3569,10 +3139,10 @@ var Mere = (() => {
 
     <message-list @visible-messages>
       <message-card !open-message with item.id>
-        <avatar @item.avatar/>
-        <heading @item.sender/>
-        <subtitle @item.subject/>
-        <timestamp @item.received-at/>
+        <avatar @item.avatar></avatar>
+        <heading @item.sender></heading>
+        <subtitle @item.subject></subtitle>
+        <timestamp @item.received-at></timestamp>
       </message-card>
     </message-list>
 
@@ -3588,23 +3158,23 @@ var Mere = (() => {
 
     <header>
       <nav-item "inbox">Back</nav-item>
-      <heading @selected-message.subject/>
+      <heading @selected-message.subject></heading>
       <nav-item !archive-message with selected-message.id>Archive</nav-item>
     </header>
 
     <card>
       <header>
-        <avatar @selected-message.avatar/>
-        <heading @selected-message.sender/>
-        <timestamp @selected-message.received-at/>
+        <avatar @selected-message.avatar></avatar>
+        <heading @selected-message.sender></heading>
+        <timestamp @selected-message.received-at></timestamp>
       </header>
-      <paragraph @selected-message.body/>
+      <paragraph @selected-message.body></paragraph>
     </card>
 
     <toggle ~selected-message.read>Mark as read</toggle>
 
     <form>
-      <field ~reply-draft placeholder="Write a reply…"/>
+      <field ~reply-draft placeholder="Write a reply…"></field>
       <button !send-reply with selected-message.id>Send</button>
     </form>
 
@@ -3654,5 +3224,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 </script>
 
+<script type="application/mere-source" id="mere-original-source">PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImVuIj4KPGhlYWQ+CiAgPG1ldGEgY2hhcnNldD0idXRmLTgiPgogIDxtZXRhIG5hbWU9InZpZXdwb3J0IiBjb250ZW50PSJ3aWR0aD1kZXZpY2Utd2lkdGgsIGluaXRpYWwtc2NhbGU9MSI+CiAgPHRpdGxlPkluYm94IOKAlCBNZXJlPC90aXRsZT4KICA8c2NyaXB0IHNyYz0iLi4vZGlzdC9tZXJlLXJ1bnRpbWUuanMiPjwvc2NyaXB0Pgo8L2hlYWQ+Cjxib2R5IHN0eWxlPSJtYXJnaW46MCI+Cgo8d29ya2Jvb2sgdGhlbWU9ImNsYXNzaWMtbGlnaHQiPgoKICA8c3RhdGU+CiAgICA8dmFsdWUgbmFtZT0iY3VycmVudC10YWIiIHR5cGU9InRleHQiIGRlZmF1bHQ9ImluYm94Ij48L3ZhbHVlPgogICAgPHZhbHVlIG5hbWU9Im1lc3NhZ2VzIiB0eXBlPSJsaXN0Ij48L3ZhbHVlPgogICAgPHZhbHVlIG5hbWU9InNlbGVjdGVkLW1lc3NhZ2UiIHR5cGU9Im1hcCI+PC92YWx1ZT4KICAgIDx2YWx1ZSBuYW1lPSJyZXBseS1kcmFmdCIgdHlwZT0idGV4dCIgZGVmYXVsdD0iIj48L3ZhbHVlPgogIDwvc3RhdGU+CgogIDxjb21wdXRlZD4KICAgIDx2YWx1ZSBuYW1lPSJ2aXNpYmxlLW1lc3NhZ2VzIiBmcm9tPSJtZXNzYWdlcyIgd2hlcmU9ImZvbGRlciA9IGN1cnJlbnQtdGFiIj48L3ZhbHVlPgogICAgPHZhbHVlIG5hbWU9InVucmVhZC1jb3VudCIgZnJvbT0ibWVzc2FnZXMiIHdoZXJlPSJyZWFkID0gZmFsc2UiIG9wPSJjb3VudCI+PC92YWx1ZT4KICA8L2NvbXB1dGVkPgoKICA8YWN0aW9ucz4KICAgIDxhY3Rpb24gbmFtZT0ib3Blbi1tZXNzYWdlIiB0YWtlcz0iaWQiPgogICAgICBzZXQgc2VsZWN0ZWQtbWVzc2FnZSB0byBtZXNzYWdlcyB3aGVyZSBpZCA9IGlkCiAgICAgIGdvLXRvIG1lc3NhZ2UtZGV0YWlsCiAgICA8L2FjdGlvbj4KICAgIDxhY3Rpb24gbmFtZT0iYXJjaGl2ZS1tZXNzYWdlIiB0YWtlcz0iaWQiPgogICAgICBzZXQgbWVzc2FnZXMuZm9sZGVyIHRvICJhcmNoaXZlIiB3aGVyZSBpZCA9IGlkCiAgICAgIGdvLXRvIGluYm94CiAgICA8L2FjdGlvbj4KICAgIDxhY3Rpb24gbmFtZT0ic2VuZC1yZXBseSIgdGFrZXM9ImlkIj4KICAgICAgYWRkLXRvIG1lc3NhZ2VzIHNlbmRlciAiTWUiIGJvZHkgcmVwbHktZHJhZnQgZm9sZGVyICJzZW50IiByZWFkICJ0cnVlIgogICAgICBjbGVhciByZXBseS1kcmFmdAogICAgICBnby10byBpbmJveAogICAgPC9hY3Rpb24+CiAgPC9hY3Rpb25zPgoKICA8c2NyZWVuIG5hbWU9ImluYm94IiA/Im1vYmlsZSBpbmJveCB3aXRoIHRhYnMgYW5kIG1lc3NhZ2UgbGlzdCI+CgogICAgPGhlYWRlcj4KICAgICAgPGhlYWRpbmc+SW5ib3g8L2hlYWRpbmc+CiAgICAgIDxiYWRnZSBAdW5yZWFkLWNvdW50PjwvYmFkZ2U+CiAgICA8L2hlYWRlcj4KCiAgICA8dGFiLWJhciB+Y3VycmVudC10YWI+CiAgICAgIDx0YWIgImluYm94Ij5JbmJveDwvdGFiPgogICAgICA8dGFiICJzZW50Ij5TZW50PC90YWI+CiAgICAgIDx0YWIgImFyY2hpdmUiPkFyY2hpdmU8L3RhYj4KICAgIDwvdGFiLWJhcj4KCiAgICA8bWVzc2FnZS1saXN0IEB2aXNpYmxlLW1lc3NhZ2VzPgogICAgICA8bWVzc2FnZS1jYXJkICFvcGVuLW1lc3NhZ2Ugd2l0aCBpdGVtLmlkPgogICAgICAgIDxhdmF0YXIgQGl0ZW0uYXZhdGFyPjwvYXZhdGFyPgogICAgICAgIDxoZWFkaW5nIEBpdGVtLnNlbmRlcj48L2hlYWRpbmc+CiAgICAgICAgPHN1YnRpdGxlIEBpdGVtLnN1YmplY3Q+PC9zdWJ0aXRsZT4KICAgICAgICA8dGltZXN0YW1wIEBpdGVtLnJlY2VpdmVkLWF0PjwvdGltZXN0YW1wPgogICAgICA8L21lc3NhZ2UtY2FyZD4KICAgIDwvbWVzc2FnZS1saXN0PgoKICAgIDxuYXZpZ2F0aW9uLWJhciAiYm90dG9tIj4KICAgICAgPG5hdi1pdGVtICJpbmJveCI+SW5ib3g8L25hdi1pdGVtPgogICAgICA8bmF2LWl0ZW0gInN0YXIiPlN0YXJyZWQ8L25hdi1pdGVtPgogICAgICA8bmF2LWl0ZW0gInNldHRpbmdzIj5TZXR0aW5nczwvbmF2LWl0ZW0+CiAgICA8L25hdmlnYXRpb24tYmFyPgoKICA8L3NjcmVlbj4KCiAgPHNjcmVlbiBuYW1lPSJtZXNzYWdlLWRldGFpbCIgPyJmdWxsIG1lc3NhZ2UgdmlldyB3aXRoIHJlcGx5LCBhcmNoaXZlLCBiYWNrIG5hdmlnYXRpb24iPgoKICAgIDxoZWFkZXI+CiAgICAgIDxuYXYtaXRlbSAiaW5ib3giPkJhY2s8L25hdi1pdGVtPgogICAgICA8aGVhZGluZyBAc2VsZWN0ZWQtbWVzc2FnZS5zdWJqZWN0PjwvaGVhZGluZz4KICAgICAgPG5hdi1pdGVtICFhcmNoaXZlLW1lc3NhZ2Ugd2l0aCBzZWxlY3RlZC1tZXNzYWdlLmlkPkFyY2hpdmU8L25hdi1pdGVtPgogICAgPC9oZWFkZXI+CgogICAgPGNhcmQ+CiAgICAgIDxoZWFkZXI+CiAgICAgICAgPGF2YXRhciBAc2VsZWN0ZWQtbWVzc2FnZS5hdmF0YXI+PC9hdmF0YXI+CiAgICAgICAgPGhlYWRpbmcgQHNlbGVjdGVkLW1lc3NhZ2Uuc2VuZGVyPjwvaGVhZGluZz4KICAgICAgICA8dGltZXN0YW1wIEBzZWxlY3RlZC1tZXNzYWdlLnJlY2VpdmVkLWF0PjwvdGltZXN0YW1wPgogICAgICA8L2hlYWRlcj4KICAgICAgPHBhcmFncmFwaCBAc2VsZWN0ZWQtbWVzc2FnZS5ib2R5PjwvcGFyYWdyYXBoPgogICAgPC9jYXJkPgoKICAgIDx0b2dnbGUgfnNlbGVjdGVkLW1lc3NhZ2UucmVhZD5NYXJrIGFzIHJlYWQ8L3RvZ2dsZT4KCiAgICA8Zm9ybT4KICAgICAgPGZpZWxkIH5yZXBseS1kcmFmdCBwbGFjZWhvbGRlcj0iV3JpdGUgYSByZXBseeKApiI+PC9maWVsZD4KICAgICAgPGJ1dHRvbiAhc2VuZC1yZXBseSB3aXRoIHNlbGVjdGVkLW1lc3NhZ2UuaWQ+U2VuZDwvYnV0dG9uPgogICAgPC9mb3JtPgoKICA8L3NjcmVlbj4KCjwvd29ya2Jvb2s+Cgo8c2NyaXB0PgovLyBTZWVkIG1vY2sgZGF0YSDigJQgaW4gcHJvZHVjdGlvbiB0aGlzIGxpdmVzIGluIHBlcnNpc3RlZCBzdGF0ZSAoTWlsZXN0b25lIDMpCmRvY3VtZW50LmFkZEV2ZW50TGlzdGVuZXIoJ0RPTUNvbnRlbnRMb2FkZWQnLCAoKSA9PiB7CiAgc2V0VGltZW91dCgoKSA9PiB7CiAgICBjb25zdCBzdG9yZSA9IHdpbmRvdy5fX21lcmVTdG9yZTsKICAgIGlmICghc3RvcmUpIHJldHVybjsKICAgIHN0b3JlLnNldCgnbWVzc2FnZXMnLCBbCiAgICAgIHsKICAgICAgICBpZDogJzEnLCBmb2xkZXI6ICdpbmJveCcsCiAgICAgICAgc2VuZGVyOiAnQWxpY2UgQ2hlbicsIHN1YmplY3Q6ICdRMiBwbGFubmluZyBkb2MgaXMgcmVhZHkgZm9yIHJldmlldycsCiAgICAgICAgYm9keTogJ0hpIOKAlCBJXCd2ZSBmaW5pc2hlZCB0aGUgUTIgcGxhbm5pbmcgZG9jdW1lbnQuIEl0IGNvdmVycyByZXNvdXJjZSBhbGxvY2F0aW9uLCBrZXkgbWlsZXN0b25lcywgYW5kIHRoZSB0aHJlZSBpbml0aWF0aXZlcyB3ZSBkaXNjdXNzZWQgbGFzdCB3ZWVrLiBMZXQgbWUga25vdyBpZiB5b3Ugd2FudCB0byB3YWxrIHRocm91Z2ggaXQgdG9nZXRoZXIgYmVmb3JlIHRoZSBNb25kYXkgc3RhbmR1cC4nLAogICAgICAgIGF2YXRhcjogJ0FDJywgJ3JlY2VpdmVkLWF0JzogbmV3IERhdGUoRGF0ZS5ub3coKSAtIDEyICogNjAwMDApLnRvSVNPU3RyaW5nKCksIHJlYWQ6IGZhbHNlLAogICAgICB9LAogICAgICB7CiAgICAgICAgaWQ6ICcyJywgZm9sZGVyOiAnaW5ib3gnLAogICAgICAgIHNlbmRlcjogJ0JlbiBUb3JyZXMnLCBzdWJqZWN0OiAnUXVpY2sgcXVlc3Rpb24gYWJvdXQgdGhlIEFQSSBjb250cmFjdCcsCiAgICAgICAgYm9keTogJ0hleSDigJQganVzdCB3YW50ZWQgdG8gY29uZmlybTogYXJlIHdlIHZlcnNpb25pbmcgdGhlIEFQSSBhdCAvdjEvIG9yIHVzaW5nIEFjY2VwdC1WZXJzaW9uIGhlYWRlcnM/IFRoZSBiYWNrZW5kIHRlYW0gaGFzIGJlZW4gc3BsaXQgb24gdGhpcyBhbmQgd2UgbmVlZCB0byBsb2NrIGl0IGluIGJlZm9yZSBUaHVyc2RheS4nLAogICAgICAgIGF2YXRhcjogJ0JUJywgJ3JlY2VpdmVkLWF0JzogbmV3IERhdGUoRGF0ZS5ub3coKSAtIDQ3ICogNjAwMDApLnRvSVNPU3RyaW5nKCksIHJlYWQ6IGZhbHNlLAogICAgICB9LAogICAgICB7CiAgICAgICAgaWQ6ICczJywgZm9sZGVyOiAnaW5ib3gnLAogICAgICAgIHNlbmRlcjogJ1NhcmEgS2ltJywgc3ViamVjdDogJ1VwZGF0ZWQgZGVzaWduIHRva2VucyDigJQgcGxlYXNlIHJldmlldycsCiAgICAgICAgYm9keTogJ0F0dGFjaGVkIGFyZSB0aGUgdXBkYXRlZCBkZXNpZ24gdG9rZW5zIGZvciB0aGUgbmV3IGNvbXBvbmVudCBsaWJyYXJ5LiBUaGUgbWFpbiBjaGFuZ2VzIGFyZSBpbiB0aGUgc3BhY2luZyBzY2FsZSAod2UgbW92ZWQgdG8gYSA0cHggYmFzZSkgYW5kIHRoZSBjb2xvciByYW1wIGZvciB0aGUgYWNjZW50IHBhbGV0dGUuJywKICAgICAgICBhdmF0YXI6ICdTSycsICdyZWNlaXZlZC1hdCc6IG5ldyBEYXRlKERhdGUubm93KCkgLSAyLjUgKiAzNjAwMDAwKS50b0lTT1N0cmluZygpLCByZWFkOiB0cnVlLAogICAgICB9LAogICAgICB7CiAgICAgICAgaWQ6ICc0JywgZm9sZGVyOiAnaW5ib3gnLAogICAgICAgIHNlbmRlcjogJ01hcmN1cyBXZWJiJywgc3ViamVjdDogJ09uYm9hcmRpbmcgbm90ZXMgZnJvbSB0aGlzIG1vcm5pbmcnLAogICAgICAgIGJvZHk6ICdHb29kIG1lZXRpbmcgdGhpcyBtb3JuaW5nLiBIZXJlIGFyZSBteSBub3Rlczogd2Ugc2hvdWxkIHByaW9yaXRpc2UgdGhlIGVtcHR5IHN0YXRlIHNjcmVlbnMsIHRoZSBsb2FkaW5nIHNrZWxldG9uLCBhbmQgdGhlIGVycm9yIGJvdW5kYXJ5IGJlZm9yZSBzaGlwcGluZy4nLAogICAgICAgIGF2YXRhcjogJ01XJywgJ3JlY2VpdmVkLWF0JzogbmV3IERhdGUoRGF0ZS5ub3coKSAtIDUgKiAzNjAwMDAwKS50b0lTT1N0cmluZygpLCByZWFkOiB0cnVlLAogICAgICB9LAogICAgICB7CiAgICAgICAgaWQ6ICc1JywgZm9sZGVyOiAnYXJjaGl2ZScsCiAgICAgICAgc2VuZGVyOiAnUHJpeWEgTmFpcicsIHN1YmplY3Q6ICdJbnZvaWNlICMyMDQxIGFwcHJvdmVkJywKICAgICAgICBib2R5OiAnWW91ciBpbnZvaWNlICMyMDQxIGZvciBNYXJjaCBoYXMgYmVlbiBhcHByb3ZlZCBhbmQgd2lsbCBiZSBwcm9jZXNzZWQgaW4gdGhlIG5leHQgcGF5bWVudCBydW4gKEFwcmlsIDE4KS4nLAogICAgICAgIGF2YXRhcjogJ1BOJywgJ3JlY2VpdmVkLWF0JzogbmV3IERhdGUoRGF0ZS5ub3coKSAtIDIgKiA4NjQwMDAwMCkudG9JU09TdHJpbmcoKSwgcmVhZDogdHJ1ZSwKICAgICAgfSwKICAgIF0pOwogIH0sIDUwKTsKfSk7Cjwvc2NyaXB0PgoKPC9ib2R5Pgo8L2h0bWw+Cg==</script>
 </body>
 </html>

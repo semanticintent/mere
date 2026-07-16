@@ -11,15 +11,15 @@
 <workbook theme="classic-light">
 
   <state>
-    <value name="current-tab" type="text" default="inbox"/>
-    <value name="messages" type="list"/>
-    <value name="selected-message" type="map"/>
-    <value name="reply-draft" type="text" default=""/>
+    <value name="current-tab" type="text" default="inbox"></value>
+    <value name="messages" type="list"></value>
+    <value name="selected-message" type="map"></value>
+    <value name="reply-draft" type="text" default=""></value>
   </state>
 
   <computed>
-    <value name="visible-messages" from="messages" where="folder = current-tab"/>
-    <value name="unread-count" from="messages" where="read = false" op="count"/>
+    <value name="visible-messages" from="messages" where="folder = current-tab"></value>
+    <value name="unread-count" from="messages" where="read = false" op="count"></value>
   </computed>
 
   <actions>
@@ -42,7 +42,7 @@
 
     <header>
       <heading>Inbox</heading>
-      <badge @unread-count/>
+      <badge @unread-count></badge>
     </header>
 
     <tab-bar ~current-tab>
@@ -53,10 +53,10 @@
 
     <message-list @visible-messages>
       <message-card !open-message with item.id>
-        <avatar @item.avatar/>
-        <heading @item.sender/>
-        <subtitle @item.subject/>
-        <timestamp @item.received-at/>
+        <avatar @item.avatar></avatar>
+        <heading @item.sender></heading>
+        <subtitle @item.subject></subtitle>
+        <timestamp @item.received-at></timestamp>
       </message-card>
     </message-list>
 
@@ -72,23 +72,23 @@
 
     <header>
       <nav-item "inbox">Back</nav-item>
-      <heading @selected-message.subject/>
+      <heading @selected-message.subject></heading>
       <nav-item !archive-message with selected-message.id>Archive</nav-item>
     </header>
 
     <card>
       <header>
-        <avatar @selected-message.avatar/>
-        <heading @selected-message.sender/>
-        <timestamp @selected-message.received-at/>
+        <avatar @selected-message.avatar></avatar>
+        <heading @selected-message.sender></heading>
+        <timestamp @selected-message.received-at></timestamp>
       </header>
-      <paragraph @selected-message.body/>
+      <paragraph @selected-message.body></paragraph>
     </card>
 
     <toggle ~selected-message.read>Mark as read</toggle>
 
     <form>
-      <field ~reply-draft placeholder="Write a reply…"/>
+      <field ~reply-draft placeholder="Write a reply…"></field>
       <button !send-reply with selected-message.id>Send</button>
     </form>
 

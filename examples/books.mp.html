@@ -11,19 +11,19 @@
 <workbook theme="notion-paper">
 
   <state>
-    <value name="books" type="list" persist/>
-    <value name="selected-book" type="map"/>
-    <value name="current-tab" type="text" default="all"/>
-    <value name="new-title" type="text" default=""/>
-    <value name="new-author" type="text" default=""/>
-    <value name="new-rating" type="text" default=""/>
+    <value name="books" type="list" persist></value>
+    <value name="selected-book" type="map"></value>
+    <value name="current-tab" type="text" default="all"></value>
+    <value name="new-title" type="text" default=""></value>
+    <value name="new-author" type="text" default=""></value>
+    <value name="new-rating" type="text" default=""></value>
   </state>
 
   <computed>
-    <value name="visible-books" from="books" where="status = current-tab"/>
-    <value name="total-books" from="books" op="count"/>
-    <value name="finished-count" from="books" where="status = finished" op="count"/>
-    <value name="reading-count" from="books" where="status = reading" op="count"/>
+    <value name="visible-books" from="books" where="status = current-tab"></value>
+    <value name="total-books" from="books" op="count"></value>
+    <value name="finished-count" from="books" where="status = finished" op="count"></value>
+    <value name="reading-count" from="books" where="status = reading" op="count"></value>
   </computed>
 
   <actions>
@@ -51,13 +51,13 @@
 
     <header>
       <heading>My Books</heading>
-      <badge @total-books/>
+      <badge @total-books></badge>
     </header>
 
     <card ?"summary stats for finished and currently reading counts">
       <heading>Reading stats</heading>
-      <subtitle @reading-count/>
-      <subtitle @finished-count/>
+      <subtitle @reading-count></subtitle>
+      <subtitle @finished-count></subtitle>
     </card>
 
     <tab-bar ~current-tab>
@@ -69,10 +69,10 @@
 
     <card-list @visible-books>
       <card !open-book with item.id>
-        <heading @item.title/>
-        <subtitle @item.author/>
-        <badge @item.status/>
-        <badge @item.rating/>
+        <heading @item.title></heading>
+        <subtitle @item.author></subtitle>
+        <badge @item.status></badge>
+        <badge @item.rating></badge>
       </card>
     </card-list>
 
@@ -87,14 +87,14 @@
 
     <header>
       <nav-item "library">Back</nav-item>
-      <heading @selected-book.title/>
+      <heading @selected-book.title></heading>
     </header>
 
     <card>
-      <heading @selected-book.title/>
-      <subtitle @selected-book.author/>
-      <badge @selected-book.status/>
-      <paragraph @selected-book.rating/>
+      <heading @selected-book.title></heading>
+      <subtitle @selected-book.author></subtitle>
+      <badge @selected-book.status></badge>
+      <paragraph @selected-book.rating></paragraph>
     </card>
 
     <button !mark-finished with selected-book.id>Mark as Finished</button>
@@ -109,9 +109,9 @@
     </header>
 
     <form>
-      <field ~new-title placeholder="Title" required/>
-      <field ~new-author placeholder="Author" required/>
-      <field ~new-rating placeholder="Rating (e.g. 4/5)"/>
+      <field ~new-title placeholder="Title" required></field>
+      <field ~new-author placeholder="Author" required></field>
+      <field ~new-rating placeholder="Rating (e.g. 4/5)"></field>
       <button !add-book>Add to Library</button>
     </form>
 

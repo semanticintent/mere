@@ -38,6 +38,41 @@ export function checkFile(filePath: string): Diagnostic[] {
     return diagnostics; // cannot continue without root
   }
 
+  // ── MPD-014: self-closing tags are not valid Mere syntax ──────────────────
+  //
+  // No Mere tag is a real HTML5 void element, so a browser's parser always
+  // ignores "/>" on them and leaves the tag open -- the next element in
+  // source becomes its *child*, not its sibling. node-html-parser (used
+  // above for `root`) is more lenient than a real browser and treats "/>"
+  // as a genuine self-close for any tag name, so this check intentionally
+  // runs against the raw source text instead of the parsed tree -- the
+  // parsed tree would never show this bug even though a browser reproduces
+  // it every time. Mere simply doesn't support self-closing syntax: always
+  // write an explicit closing tag.
+  //
+  // Covers both the visual element registry and the structural tags used
+  // inside <state>/<computed>/<actions> (value, state, computed, actions,
+  // action aren't "elements" in the visual sense, but are real tags subject
+  // to the same parsing hazard -- e.g. three consecutive self-closing
+  // <value/> declarations silently drop the second and third from
+  // `:scope > value` lookups).
+
+  {
+    const structuralTags = ['value', 'state', 'computed', 'actions', 'action', 'workbook'];
+    const tagNames = [...new Set([...REGISTRY_MAP.keys(), ...structuralTags])];
+    const selfClosingRe = new RegExp(`<(${tagNames.join('|')})(\\s[^>]*?)?\\s*/>`, 'g');
+    let m: RegExpExecArray | null;
+    while ((m = selfClosingRe.exec(source)) !== null) {
+      const tag = m[1]!;
+      const loc = offsetToLocation(source, m.index);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_014,
+        `<${tag} /> uses self-closing syntax, which Mere does not support. No Mere tag is a real HTML void element, so a browser ignores "/>" here and nests whatever comes next inside <${tag}> instead of after it. Write an explicit closing tag: <${tag}>...</${tag}>.`,
+        filePath, loc, m[0]!.length,
+      ));
+    }
+  }
+
   // Collect declared identifiers for MPD-003 checks
   const stateNames    = new Set<string>();
   const computedNames = new Set<string>();

@@ -1,6 +1,6 @@
 // ─── Mere diagnostic system ───────────────────────────────────────────────────
 //
-// 8 stable codes, stable forever. Every error has a code, category, message,
+// 14 stable codes, stable forever. Every error has a code, category, message,
 // source location, and a caret string pointing at the exact problem.
 
 export type DiagnosticCategory =
@@ -40,6 +40,7 @@ export const CODES = {
   MPD_011: { code: 'MPD-011', category: 'type-mismatch'      as DiagnosticCategory, severity: 'error'   as Severity },
   MPD_012: { code: 'MPD-012', category: 'type-mismatch'      as DiagnosticCategory, severity: 'warning' as Severity },
   MPD_013: { code: 'MPD-013', category: 'structural'         as DiagnosticCategory, severity: 'error'   as Severity },
+  MPD_014: { code: 'MPD-014', category: 'syntax'             as DiagnosticCategory, severity: 'error'   as Severity },
 } as const;
 
 // ─── Location helpers ─────────────────────────────────────────────────────────

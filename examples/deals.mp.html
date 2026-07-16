@@ -12,19 +12,19 @@
 
   <state>
     <value name="deals" type="record-list">
-      <field name="name"  type="text" />
-      <field name="stage" type="text" default="lead" />
-      <field name="value" type="number" default="0" />
+      <field name="name"  type="text"></field>
+      <field name="stage" type="text" default="lead"></field>
+      <field name="value" type="number" default="0"></field>
     </value>
-    <value name="selected-id"   type="text" />
-    <value name="selected-name" type="text" />
-    <value name="selected-stage" type="text" />
-    <value name="selected-value" type="number" />
+    <value name="selected-id"   type="text"></value>
+    <value name="selected-name" type="text"></value>
+    <value name="selected-stage" type="text"></value>
+    <value name="selected-value" type="number"></value>
   </state>
 
   <computed>
-    <value name="deal-count" from="deals" op="count" />
-    <value name="pipeline"   from="deals" op="sum" field="value" />
+    <value name="deal-count" from="deals" op="count"></value>
+    <value name="pipeline"   from="deals" op="sum" field="value"></value>
   </computed>
 
   <actions>
@@ -48,7 +48,7 @@
   <screen name="pipeline">
     <header>
       <heading>Pipeline</heading>
-      <badge @deal-count />
+      <badge @deal-count></badge>
     </header>
 
     <card>
@@ -59,8 +59,8 @@
 
     <list @deals>
       <card !open-deal with item.id item.name item.stage item.value>
-        <heading @item.name />
-        <badge @item.stage />
+        <heading @item.name></heading>
+        <badge @item.stage></badge>
         <paragraph>@item.value</paragraph>
       </card>
     </list>
@@ -68,7 +68,7 @@
 
   <screen name="deal-detail" takes="deal-id deal-name">
     <header>
-      <heading @deal-name />
+      <heading @deal-name></heading>
     </header>
 
     <card>

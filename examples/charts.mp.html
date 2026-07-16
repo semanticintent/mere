@@ -13,16 +13,16 @@
   <state>
     <value name="expenses" type="record-list"
       default='[{"category":"Food","amount":420},{"category":"Travel","amount":850},{"category":"Housing","amount":1800},{"category":"Software","amount":120},{"category":"Health","amount":95}]'>
-      <field name="category" type="text" />
-      <field name="amount"   type="number" default="0" />
+      <field name="category" type="text"></field>
+      <field name="amount"   type="number" default="0"></field>
     </value>
     <value name="weight-log" type="record-list"
       default='[{"value":78.2},{"value":77.9},{"value":78.1},{"value":77.6},{"value":77.4},{"value":77.0},{"value":76.8}]'>
-      <field name="value" type="number" default="0" />
+      <field name="value" type="number" default="0"></field>
     </value>
-    <value name="new-category" type="text" />
-    <value name="new-amount"   type="number" />
-    <value name="new-weight"   type="number" />
+    <value name="new-category" type="text"></value>
+    <value name="new-amount"   type="number"></value>
+    <value name="new-weight"   type="number"></value>
   </state>
 
   <actions>
@@ -44,24 +44,24 @@
 
     <card>
       <subtitle>Spend by category (bar)</subtitle>
-      <chart type="bar" from="expenses" field="amount" label="category" />
+      <chart type="bar" from="expenses" field="amount" label="category"></chart>
     </card>
 
     <card>
       <subtitle>Weight trend (line)</subtitle>
-      <chart type="line" from="weight-log" field="value" />
+      <chart type="line" from="weight-log" field="value"></chart>
     </card>
 
     <card>
       <subtitle>Spend breakdown (pie)</subtitle>
-      <chart type="pie" from="expenses" field="amount" label="category" />
+      <chart type="pie" from="expenses" field="amount" label="category"></chart>
     </card>
 
     <card>
       <subtitle>Add an expense</subtitle>
       <form>
-        <field ~new-category placeholder="Category (e.g. Food)" />
-        <field ~new-amount type="number" placeholder="Amount" />
+        <field ~new-category placeholder="Category (e.g. Food)"></field>
+        <field ~new-amount type="number" placeholder="Amount"></field>
         <button !add-expense>Add expense</button>
       </form>
     </card>
@@ -69,7 +69,7 @@
     <card>
       <subtitle>Log a weight entry</subtitle>
       <form>
-        <field ~new-weight type="number" placeholder="Weight (kg)" />
+        <field ~new-weight type="number" placeholder="Weight (kg)"></field>
         <button !add-weight>Log weight</button>
       </form>
     </card>

@@ -19,12 +19,12 @@ Open it — it runs. Send it — it travels. No server, no account, no build ste
 <workbook theme="proton-mail">
 
   <state>
-    <value name="tasks" type="list" value="[]" />
-    <value name="new-task" type="text" value="" />
+    <value name="tasks" type="list" value="[]"></value>
+    <value name="new-task" type="text" value=""></value>
   </state>
 
   <computed>
-    <value name="task-count" from="tasks" op="count" />
+    <value name="task-count" from="tasks" op="count"></value>
   </computed>
 
   <actions>
@@ -64,9 +64,9 @@ Save as `tasks.mp.html`. Double-click. It runs.
 
 ---
 
-## 39 elements. No HTML passthrough.
+## 40 elements. No HTML passthrough.
 
-`screen` `header` `footer` `form` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `camera` `kv` `chart` `modal` `toast` `banner` `sidebar` `sidebar-brand` `sidebar-section` `data-table` `column` `search-bar` `spreadsheet` `metric` `metric-group` `bar`
+`screen` `header` `footer` `form` `toolbar` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `camera` `kv` `chart` `modal` `toast` `banner` `sidebar` `sidebar-brand` `sidebar-section` `data-table` `column` `search-bar` `spreadsheet` `metric` `metric-group` `bar`
 
 Every element has a specific role. The vocabulary is closed by design — bounded enough for AI to generate reliably, expressive enough for real apps.
 
@@ -109,7 +109,7 @@ mere schema --json            # machine-readable JSON
 Add `persist` to any state value — saved to OPFS (localStorage fallback):
 
 ```html
-<value name="notes" type="list" value="[]" persist />
+<value name="notes" type="list" value="[]" persist></value>
 ```
 
 ---

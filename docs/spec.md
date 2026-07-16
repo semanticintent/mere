@@ -46,14 +46,14 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 <workbook theme="proton-mail">
 
   <state>
-    <value name="current-tab" type="text" default="inbox"/>
-    <value name="messages" type="list" persist/>
-    <value name="selected-message" type="map"/>
+    <value name="current-tab" type="text" default="inbox"></value>
+    <value name="messages" type="list" persist></value>
+    <value name="selected-message" type="map"></value>
   </state>
 
   <computed>
-    <value name="visible-messages" from="messages" where="folder = current-tab"/>
-    <value name="unread-count" from="messages" where="read = false" op="count"/>
+    <value name="visible-messages" from="messages" where="folder = current-tab"></value>
+    <value name="unread-count" from="messages" where="read = false" op="count"></value>
   </computed>
 
   <actions>
@@ -94,7 +94,7 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 3. `!action` invokes action `action` on interaction. Arguments follow: `!open-message with item.id`.
 4. `?"text"` annotates any element with natural-language intent. Runtime ignores it; compositors read it.
 5. Quoted strings are literals. Unquoted words are identifiers. Within loops, `item.field` references the current item.
-6. Elements with children use open/close tags. Leaf elements self-close with `/>`.
+6. Every element uses an explicit open and close tag, always — `<field ~name></field>`, never `<field ~name/>`. No Mere element is a real HTML void element, so a browser silently ignores `/>` on any of them and nests whatever follows inside that element instead of after it (`mere check` rejects this as MPD-014).
 
 ---
 
@@ -115,7 +115,7 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 Any state value declared with `persist` is automatically saved to OPFS and travels with the exported workbook file.
 
 ```xml
-<value name="messages" type="list" persist/>
+<value name="messages" type="list" persist></value>
 ```
 
 ### Nested access
@@ -137,8 +137,8 @@ Computed values are derived from state. They are lazy and memoized — invalidat
 
 ```xml
 <computed>
-  <value name="visible-messages" from="messages" where="folder = current-tab"/>
-  <value name="unread-count" from="messages" where="read = false" op="count"/>
+  <value name="visible-messages" from="messages" where="folder = current-tab"></value>
+  <value name="unread-count" from="messages" where="read = false" op="count"></value>
 </computed>
 ```
 
@@ -280,6 +280,12 @@ All errors have a stable code, a category, a message, and a source location (lin
 | MPD-006 | structural | Action invoked with wrong number of arguments |
 | MPD-007 | structural | Two-way binding target is read-only |
 | MPD-008 | structural | Circular computed value dependency |
+| MPD-009 | type-mismatch | `add-to` field not declared in the record-list schema |
+| MPD-010 | unknown-identifier | `go-to` param not declared in the target screen's `takes` |
+| MPD-011 | type-mismatch | `<chart from=...>` does not reference a list or record-list state |
+| MPD-012 | type-mismatch (warning) | `<chart field=...>` not declared in the record-list schema |
+| MPD-013 | structural | Computed op requires a `field=` or `by=` attribute it's missing |
+| MPD-014 | syntax | Self-closing tag (`/>`) — not valid Mere syntax on any element |
 
 Command: `mere check workbook.mp` — validates without running. Exit 0 = clean, 1 = errors, 2 = warnings.
 
@@ -292,8 +298,8 @@ SIGILS:  @ read   ~ two-way   ! event   ? intent
 
 STRUCTURE:
   <workbook theme="...">
-    <state>     <value name="..." type="..." default="..." persist/>
-    <computed>  <value name="..." from="..." where="..." op="..."/>
+    <state>     <value name="..." type="..." default="..." persist></value>
+    <computed>  <value name="..." from="..." where="..." op="..."></value>
     <actions>   <action name="..." takes="..."> ... </action>
     <screen>    ... semantic markup ...
   </workbook>

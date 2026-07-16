@@ -11,15 +11,15 @@
 <workbook theme="brutalist">
 
   <state>
-    <value name="habits" type="list"/>
-    <value name="selected-habit" type="map"/>
-    <value name="new-habit-name" type="text" default=""/>
-    <value name="current-view" type="text" default="today"/>
+    <value name="habits" type="list"></value>
+    <value name="selected-habit" type="map"></value>
+    <value name="new-habit-name" type="text" default=""></value>
+    <value name="current-view" type="text" default="today"></value>
   </state>
 
   <computed>
-    <value name="done-today" from="habits" where="done = true" op="count"/>
-    <value name="total-habits" from="habits" op="count"/>
+    <value name="done-today" from="habits" where="done = true" op="count"></value>
+    <value name="total-habits" from="habits" op="count"></value>
   </computed>
 
   <actions>
@@ -44,19 +44,19 @@
 
     <header>
       <heading>Today</heading>
-      <badge @done-today/>
+      <badge @done-today></badge>
     </header>
 
     <card>
       <heading>Progress</heading>
-      <subtitle @done-today/>
-      <subtitle @total-habits/>
+      <subtitle @done-today></subtitle>
+      <subtitle @total-habits></subtitle>
     </card>
 
     <list @habits>
       <card !open-habit with item.id>
-        <heading @item.name/>
-        <subtitle @item.streak/>
+        <heading @item.name></heading>
+        <subtitle @item.streak></subtitle>
         <toggle ~item.done>Done</toggle>
       </card>
     </list>
@@ -72,12 +72,12 @@
 
     <header>
       <nav-item "today">Back</nav-item>
-      <heading @selected-habit.name/>
+      <heading @selected-habit.name></heading>
     </header>
 
     <card>
       <heading>Streak</heading>
-      <subtitle @selected-habit.streak/>
+      <subtitle @selected-habit.streak></subtitle>
       <toggle ~selected-habit.done>Mark done today</toggle>
     </card>
 
@@ -91,7 +91,7 @@
     </header>
 
     <form>
-      <field ~new-habit-name placeholder="e.g. Read for 20 minutes"/>
+      <field ~new-habit-name placeholder="e.g. Read for 20 minutes"></field>
       <button !add-habit>Add Habit</button>
     </form>
 

@@ -13,20 +13,20 @@
   <state>
     <value name="expenses" type="record-list"
       default='[{"id":"e1","description":"Groceries","amount":85,"category":"food"},{"id":"e2","description":"Train tickets","amount":42,"category":"travel"},{"id":"e3","description":"Lunch","amount":18,"category":"food"},{"id":"e4","description":"Hotel","amount":210,"category":"travel"},{"id":"e5","description":"Coffee","amount":6,"category":"food"}]'>
-      <field name="description" type="text" />
-      <field name="amount"      type="number" default="0" />
-      <field name="category"    type="text"   default="general" />
+      <field name="description" type="text"></field>
+      <field name="amount"      type="number" default="0"></field>
+      <field name="category"    type="text"   default="general"></field>
     </value>
-    <value name="new-description" type="text" />
-    <value name="new-amount"      type="number" />
-    <value name="new-category"    type="text" />
+    <value name="new-description" type="text"></value>
+    <value name="new-amount"      type="number"></value>
+    <value name="new-category"    type="text"></value>
   </state>
 
   <computed>
-    <value name="total"        from="expenses" op="sum"   field="amount" />
-    <value name="count"        from="expenses" op="count" />
-    <value name="food-total"   from="expenses" op="sum"   field="amount" where='category = "food"' />
-    <value name="travel-total" from="expenses" op="sum"   field="amount" where='category = "travel"' />
+    <value name="total"        from="expenses" op="sum"   field="amount"></value>
+    <value name="count"        from="expenses" op="count"></value>
+    <value name="food-total"   from="expenses" op="sum"   field="amount" where='category = "food"'></value>
+    <value name="travel-total" from="expenses" op="sum"   field="amount" where='category = "travel"'></value>
   </computed>
 
   <actions>
@@ -44,31 +44,31 @@
   <screen name="expenses">
     <header>
       <heading>Expenses</heading>
-      <badge @count />
+      <badge @count></badge>
     </header>
 
     <card>
       <subtitle>Summary</subtitle>
-      <kv label="Total"  @total />
-      <kv label="Food"   @food-total />
-      <kv label="Travel" @travel-total />
+      <kv label="Total"  @total></kv>
+      <kv label="Food"   @food-total></kv>
+      <kv label="Travel" @travel-total></kv>
     </card>
 
     <card>
       <subtitle>Add an expense</subtitle>
       <form>
-        <field ~new-description placeholder="Description" />
-        <field ~new-amount      type="number" placeholder="Amount" />
-        <field ~new-category    placeholder="Category (food / travel / general)" />
+        <field ~new-description placeholder="Description"></field>
+        <field ~new-amount      type="number" placeholder="Amount"></field>
+        <field ~new-category    placeholder="Category (food / travel / general)"></field>
         <button !add-expense>Add expense</button>
       </form>
     </card>
 
     <list @expenses>
       <card>
-        <heading @item.description />
-        <badge @item.category />
-        <kv label="Amount" @item.amount />
+        <heading @item.description></heading>
+        <badge @item.category></badge>
+        <kv label="Amount" @item.amount></kv>
         <button !remove-expense with item.id>Remove</button>
       </card>
     </list>

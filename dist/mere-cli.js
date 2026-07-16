@@ -35,6 +35,13 @@ var REGISTRY = [
     attrs: [],
     container: true
   },
+  {
+    tag: "toolbar",
+    description: "Flex row wrapper for a search-bar plus inline actions, with padding and gap.",
+    sigils: ["?"],
+    attrs: [],
+    container: true
+  },
   // ── Text ───────────────────────────────────────────────────────────────────
   {
     tag: "heading",
@@ -319,7 +326,8 @@ var CODES = {
   MPD_010: { code: "MPD-010", category: "unknown-identifier", severity: "error" },
   MPD_011: { code: "MPD-011", category: "type-mismatch", severity: "error" },
   MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" },
-  MPD_013: { code: "MPD-013", category: "structural", severity: "error" }
+  MPD_013: { code: "MPD-013", category: "structural", severity: "error" },
+  MPD_014: { code: "MPD-014", category: "syntax", severity: "error" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -402,6 +410,23 @@ function checkFile(filePath) {
       { line: 1, column: 1, sourceLine: source.split("\n")[0] ?? "" }
     ));
     return diagnostics;
+  }
+  {
+    const structuralTags = ["value", "state", "computed", "actions", "action", "workbook"];
+    const tagNames = [.../* @__PURE__ */ new Set([...REGISTRY_MAP.keys(), ...structuralTags])];
+    const selfClosingRe = new RegExp(`<(${tagNames.join("|")})(\\s[^>]*?)?\\s*/>`, "g");
+    let m;
+    while ((m = selfClosingRe.exec(source)) !== null) {
+      const tag = m[1];
+      const loc = offsetToLocation(source, m.index);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_014,
+        `<${tag} /> uses self-closing syntax, which Mere does not support. No Mere tag is a real HTML void element, so a browser ignores "/>" here and nests whatever comes next inside <${tag}> instead of after it. Write an explicit closing tag: <${tag}>...</${tag}>.`,
+        filePath,
+        loc,
+        m[0].length
+      ));
+    }
   }
   const stateNames = /* @__PURE__ */ new Set();
   const computedNames = /* @__PURE__ */ new Set();
