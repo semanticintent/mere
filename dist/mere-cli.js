@@ -305,11 +305,182 @@ var REGISTRY_MAP = new Map(REGISTRY.map((e) => [e.tag, e]));
 var KNOWN_THEMES = [
   "classic-light",
   "proton-mail",
-  "corporate-light",
-  "ecommerce-hero",
-  "notion-paper",
   "brutalist",
   "warm-brutalist"
+];
+var STATE_TYPES = [
+  {
+    type: "text",
+    description: "A string value.",
+    emptyValue: '""'
+  },
+  {
+    type: "number",
+    description: "A numeric value. value= is parsed with Number().",
+    emptyValue: "0"
+  },
+  {
+    type: "boolean",
+    description: 'A true/false value. value= is true only for the exact string "true".',
+    emptyValue: "false"
+  },
+  {
+    type: "list",
+    description: "An ordered collection of records. value= is parsed as JSON; malformed JSON falls back to an empty list.",
+    emptyValue: "[]"
+  },
+  {
+    type: "map",
+    description: "A key/value record, read with dotted paths (@selected-message.subject). Parsed as JSON; malformed JSON falls back to an empty map.",
+    emptyValue: "{}"
+  },
+  {
+    type: "record-list",
+    description: "A list with a declared field schema \u2014 <field name= type= default=> children. Enables add-to key validation (MPD-009) and per-field type coercion.",
+    emptyValue: "[]"
+  }
+];
+var STATEMENTS = [
+  {
+    keyword: "set",
+    grammar: "set <target> to <value> [where <condition>]",
+    description: 'Assign a value. With where, updates the matching field on every matching record (set habits.done to "true" where id = hid), or selects a matching record into a map value.'
+  },
+  {
+    keyword: "clear",
+    grammar: "clear <target>",
+    description: "Reset a state value to the empty value for its type."
+  },
+  {
+    keyword: "go-to",
+    grammar: "go-to <screen> [with <key> = <value> ...]",
+    description: "Navigate to a screen, optionally passing parameters. Parameters must be declared in the target screen\u2019s takes= (MPD-010)."
+  },
+  {
+    keyword: "add-to",
+    grammar: "add-to <list> <key> <value> [<key> <value> ...]",
+    description: "Append a record to a list. Keys are validated against the record-list schema when one is declared (MPD-009)."
+  },
+  {
+    keyword: "remove-from",
+    grammar: "remove-from <list> where <condition>",
+    description: "Remove every record in the list matching the condition."
+  },
+  {
+    keyword: "increment",
+    grammar: "increment <target> [by <n>]",
+    description: "Add to a number state value. Step defaults to 1."
+  },
+  {
+    keyword: "decrement",
+    grammar: "decrement <target> [by <n>]",
+    description: "Subtract from a number state value. Step defaults to 1."
+  }
+];
+var COMPUTED_OPS = [
+  // Scalar arithmetic over two named state values
+  {
+    op: "add",
+    source: "pair",
+    requires: [],
+    optional: [],
+    description: 'a + b, where from="a,b" names two number state values.'
+  },
+  {
+    op: "subtract",
+    source: "pair",
+    requires: [],
+    optional: [],
+    description: 'a \u2212 b, where from="a,b" names two number state values.'
+  },
+  {
+    op: "percent",
+    source: "pair",
+    requires: [],
+    optional: [],
+    description: "a \xF7 b \xD7 100, rounded to a whole number. Returns 0 when b is 0."
+  },
+  {
+    op: "percent-of",
+    source: "pair",
+    requires: [],
+    optional: [],
+    description: "a \xD7 b \xF7 100 \u2014 b percent of a."
+  },
+  // Aggregations over a list / record-list, filtered by where= first
+  {
+    op: "count",
+    source: "list",
+    requires: [],
+    optional: ["where"],
+    description: "Number of items remaining after the where filter."
+  },
+  {
+    op: "sum",
+    source: "list",
+    requires: ["field"],
+    optional: ["where"],
+    description: "Adds field across every matching item."
+  },
+  {
+    op: "avg",
+    source: "list",
+    requires: ["field"],
+    optional: ["where", "window"],
+    description: 'Mean of field, rounded to a whole number. window="N" averages only the last N items.'
+  },
+  {
+    op: "min",
+    source: "list",
+    requires: ["field"],
+    optional: ["where", "window"],
+    description: 'Smallest value of field. window="N" considers only the last N items.'
+  },
+  {
+    op: "max",
+    source: "list",
+    requires: ["field"],
+    optional: ["where", "window"],
+    description: 'Largest value of field. window="N" considers only the last N items.'
+  },
+  {
+    op: "sum-product",
+    source: "list",
+    requires: ["field", "by"],
+    optional: ["where"],
+    description: "Sum of field \xD7 by across matching items \u2014 line-item totals in one declaration."
+  },
+  {
+    op: "group-by",
+    source: "list",
+    requires: ["field", "by"],
+    optional: [],
+    description: 'Groups items by the by field, summing field within each group. Returns a list of { key, value } sorted by value descending \u2014 feeds <chart from="..." field="value" label="key">.'
+  },
+  {
+    op: "streak",
+    source: "list",
+    requires: ["field"],
+    optional: ["by", "where"],
+    description: "Counts consecutive items, from the most recent backwards, whose field is truthy. by= names a date field to sort by (descending) before counting."
+  }
+];
+var DIAGNOSTIC_DOCS = [
+  { code: "MPD-001", emitted: true, description: "Workbook root element missing, unreadable, or invalid." },
+  { code: "MPD-002", emitted: true, description: "Tag is not in the element registry." },
+  { code: "MPD-003", emitted: true, description: "A sigil references state, a computed value, or an action that is not declared." },
+  { code: "MPD-004", emitted: true, description: "Malformed sigil \u2014 @, ~, or ! with no identifier after it." },
+  { code: "MPD-005", emitted: false, description: "Binding to an incompatible state type." },
+  { code: "MPD-006", emitted: false, description: "Action invoked with the wrong number of arguments." },
+  { code: "MPD-007", emitted: true, description: "Two-way binding (~) targets a computed value, which is read-only." },
+  { code: "MPD-008", emitted: true, description: "Circular computed value dependency." },
+  { code: "MPD-009", emitted: true, description: "add-to uses a key that is not declared in the record-list schema." },
+  { code: "MPD-010", emitted: true, description: "go-to passes a parameter the target screen does not declare in takes=." },
+  { code: "MPD-011", emitted: true, description: '<chart from="..."> does not reference a list or record-list state value.' },
+  { code: "MPD-012", emitted: true, description: '<chart field="..."> is not declared in the record-list schema (warning).' },
+  { code: "MPD-013", emitted: true, description: "A computed op is missing a field= or by= attribute it requires." },
+  { code: "MPD-014", emitted: true, description: "Self-closing tag \u2014 no Mere tag is an HTML void element, so /> silently nests what follows." },
+  { code: "MPD-015", emitted: true, description: "theme= names a theme that does not exist; the runtime would silently fall back to classic-light." }
 ];
 
 // src/cli/diagnostics.ts
@@ -327,7 +498,8 @@ var CODES = {
   MPD_011: { code: "MPD-011", category: "type-mismatch", severity: "error" },
   MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" },
   MPD_013: { code: "MPD-013", category: "structural", severity: "error" },
-  MPD_014: { code: "MPD-014", category: "syntax", severity: "error" }
+  MPD_014: { code: "MPD-014", category: "syntax", severity: "error" },
+  MPD_015: { code: "MPD-015", category: "unknown-identifier", severity: "error" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -427,6 +599,18 @@ function checkFile(filePath) {
         m[0].length
       ));
     }
+  }
+  const themeAttr = workbook.getAttribute("theme");
+  if (themeAttr && !KNOWN_THEMES.includes(themeAttr)) {
+    const loc = nodeLocation(source, workbook);
+    diagnostics.push(makeDiagnostic(
+      CODES.MPD_015,
+      `Unknown theme "${themeAttr}". The runtime would fall back to classic-light.
+  Available themes: ${KNOWN_THEMES.join(", ")}.`,
+      filePath,
+      loc,
+      themeAttr.length
+    ));
   }
   const stateNames = /* @__PURE__ */ new Set();
   const computedNames = /* @__PURE__ */ new Set();
@@ -711,9 +895,43 @@ function nodeLocation(source, el) {
 }
 
 // src/cli/schema.ts
+function buildDiagnosticTable() {
+  const byCode = new Map(
+    Object.values(CODES).map((c) => [c.code, c])
+  );
+  const documented = new Set(DIAGNOSTIC_DOCS.map((d) => d.code));
+  const undocumented = [...byCode.keys()].filter((c) => !documented.has(c));
+  const orphaned = [...documented].filter((c) => !byCode.has(c));
+  if (undocumented.length || orphaned.length) {
+    const parts = [];
+    if (undocumented.length) parts.push(`emitted but undocumented: ${undocumented.join(", ")} \u2014 add to DIAGNOSTIC_DOCS in src/registry.ts`);
+    if (orphaned.length) parts.push(`documented but not defined: ${orphaned.join(", ")} \u2014 remove from DIAGNOSTIC_DOCS or restore in src/cli/diagnostics.ts`);
+    throw new Error(`[mere] diagnostic registry out of sync \u2014 ${parts.join("; ")}`);
+  }
+  return DIAGNOSTIC_DOCS.map((doc) => {
+    const base = byCode.get(doc.code);
+    return {
+      code: doc.code,
+      category: base.category,
+      severity: base.severity,
+      description: doc.description,
+      emitted: doc.emitted
+    };
+  });
+}
+function buildLanguageRegistry() {
+  return {
+    elements: REGISTRY,
+    themes: [...KNOWN_THEMES],
+    stateTypes: STATE_TYPES,
+    statements: STATEMENTS,
+    computedOps: COMPUTED_OPS,
+    diagnostics: buildDiagnosticTable()
+  };
+}
 function printSchema(asJson) {
   if (asJson) {
-    console.log(JSON.stringify(REGISTRY, null, 2));
+    console.log(JSON.stringify(buildLanguageRegistry(), null, 2));
     return;
   }
   const COL = {
@@ -725,7 +943,7 @@ function printSchema(asJson) {
   const pad = (s, n) => s.padEnd(n);
   const hr = "\u2500".repeat(COL.tag + COL.sigils + COL.attrs + 14);
   line("");
-  line("\x1B[1mMere element registry\x1B[0m  \u2014 v0.1");
+  line("\x1B[1mMere element registry\x1B[0m");
   line(hr);
   line(
     "\x1B[2m" + pad("tag", COL.tag) + pad("sigils", COL.sigils) + pad("passthrough attrs", COL.attrs) + "description\x1B[0m"
@@ -740,11 +958,26 @@ function printSchema(asJson) {
   }
   line(hr);
   line(`\x1B[2m${REGISTRY.length} elements\x1B[0m`);
+  const diagnostics = buildDiagnosticTable();
+  const reserved = diagnostics.filter((d) => !d.emitted);
+  line("");
+  line("\x1B[1mState types\x1B[0m");
+  line(STATE_TYPES.map((t) => t.type).join("  "));
+  line("");
+  line("\x1B[1mAction statements\x1B[0m");
+  for (const s of STATEMENTS) line("  " + s.grammar);
+  line("");
+  line("\x1B[1mComputed operators\x1B[0m");
+  line("  list   " + COMPUTED_OPS.filter((o) => o.source === "list").map((o) => o.op).join("  "));
+  line("  pair   " + COMPUTED_OPS.filter((o) => o.source === "pair").map((o) => o.op).join("  "));
+  line("");
+  line("\x1B[1mDiagnostics\x1B[0m");
+  line(`  ${diagnostics.length} codes, ${diagnostics.length - reserved.length} emitted` + (reserved.length ? `, ${reserved.length} reserved (${reserved.map((d) => d.code).join(", ")})` : ""));
   line("");
   line("\x1B[1mThemes\x1B[0m");
   line(KNOWN_THEMES.join("  "));
   line("");
-  line("\x1B[2mRun \x1B[0mmere schema --json\x1B[2m for machine-readable output.\x1B[0m");
+  line("\x1B[2mRun \x1B[0mmere schema --json\x1B[2m for the full machine-readable language registry.\x1B[0m");
   line("");
 }
 
@@ -1251,12 +1484,20 @@ This proves the artifact changed since it was packed \u2014 not who changed it.`
   }
 }
 
+// src/version.ts
+var VERSION = "0.5.0";
+
 // src/cli/index.ts
 var args = process.argv.slice(2);
 var command = args[0];
+var DIAGNOSTIC_HELP = buildDiagnosticTable().map((d) => {
+  const code = d.code.padEnd(9);
+  const cat = (d.emitted ? d.category : d.category + " (reserved)").padEnd(26);
+  return `  ${code}${cat}${d.description}`;
+}).join("\n");
 var HELP = `
 \x1B[1mMere\x1B[0m \u2014 a workbook format for apps
-\x1B[2mVersion 0.2.0\x1B[0m
+\x1B[2mVersion ${VERSION}\x1B[0m
 
 \x1B[1mUsage:\x1B[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
@@ -1279,16 +1520,9 @@ var HELP = `
   --no-open                Don't open the default browser automatically
 
 \x1B[1mDiagnostic codes:\x1B[0m
-  MPD-001  structural        Workbook root element missing or invalid
-  MPD-002  unknown-element   Tag not in the element registry
-  MPD-003  unknown-id        Sigil references undeclared state or action
-  MPD-004  syntax            Malformed sigil attribute
-  MPD-005  type-mismatch     Binding to incompatible state type
-  MPD-006  structural        Action invoked with wrong number of arguments
-  MPD-007  structural        Two-way binding target is read-only (computed value)
-  MPD-008  structural        Circular computed value dependency
+${DIAGNOSTIC_HELP}
 
-\x1B[2mFile extension: .mp (Mere Package)\x1B[0m
+\x1B[2mFile extension: .mp.html (Mere Package) \u2014 .mp also accepted\x1B[0m
 `;
 switch (command) {
   case "check": {

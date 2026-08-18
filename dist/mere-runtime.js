@@ -742,6 +742,15 @@ var Mere = (() => {
     return `mere:${workbook}:${state}`;
   }
 
+  // src/runtime/safe-url.ts
+  var SAFE_IMAGE_SRC = /^(?:https?:\/\/|\/|\.\/|data:image\/)/i;
+  function safeImageSrc(value) {
+    const src = value.trim();
+    if (/[\u0000-\u001F\u007F]/.test(src)) return null;
+    if (/["'<>`]/.test(src)) return null;
+    return SAFE_IMAGE_SRC.test(src) ? src : null;
+  }
+
   // src/runtime/elements.ts
   function div(cls, ...extra) {
     const el = document.createElement("div");
@@ -835,8 +844,12 @@ var Mere = (() => {
     const el = div("avatar");
     if (node.bindings.read) {
       bindRead(el, node.bindings.read, store, context, (v) => {
-        if (v.startsWith("http") || v.startsWith("/") || v.startsWith("data:")) {
-          el.innerHTML = `<img src="${v}" alt="">`;
+        const src = safeImageSrc(v);
+        if (src) {
+          const img = document.createElement("img");
+          img.src = src;
+          img.alt = "";
+          el.replaceChildren(img);
         } else {
           el.textContent = v.slice(0, 2).toUpperCase();
         }
@@ -993,6 +1006,35 @@ var Mere = (() => {
     label.appendChild(textSpan);
     return label;
   };
+  var CAPTURE_MAX_EDGE = 1600;
+  var CAPTURE_QUALITY = 0.8;
+  function processCapture(file) {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const scale = Math.min(1, CAPTURE_MAX_EDGE / Math.max(img.width, img.height));
+        const width = Math.max(1, Math.round(img.width * scale));
+        const height = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("[mere] camera: no 2d context"));
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", CAPTURE_QUALITY));
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        reject(new Error("[mere] camera: could not decode the selected image"));
+      };
+      img.src = objectUrl;
+    });
+  }
   var camera = (node, store, context, onGoTo) => {
     const wrapper = div("camera");
     const input = document.createElement("input");
@@ -1028,11 +1070,9 @@ var Mere = (() => {
       input.addEventListener("change", () => {
         const file = input.files?.[0];
         if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          store.set(stateName, { dataUrl: reader.result, capturedAt: (/* @__PURE__ */ new Date()).toISOString() });
-        };
-        reader.readAsDataURL(file);
+        void processCapture(file).then((dataUrl) => {
+          store.set(stateName, { dataUrl, capturedAt: (/* @__PURE__ */ new Date()).toISOString() });
+        });
       });
     }
     wrapper.appendChild(button2);

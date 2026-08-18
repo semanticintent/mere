@@ -73,6 +73,24 @@ export function checkFile(filePath: string): Diagnostic[] {
     }
   }
 
+  // ── MPD-015: unknown theme ────────────────────────────────────────────────
+  //
+  // An unrecognised theme is not a parse error — the runtime warns to the
+  // console and renders classic-light instead. That silent substitution is
+  // exactly what makes it worth catching here: books.mp.html shipped with
+  // theme="notion-paper" (a theme that never existed) and rendered as
+  // classic-light on the docs site without anything visibly wrong.
+
+  const themeAttr = workbook.getAttribute('theme');
+  if (themeAttr && !(KNOWN_THEMES as readonly string[]).includes(themeAttr)) {
+    const loc = nodeLocation(source, workbook);
+    diagnostics.push(makeDiagnostic(
+      CODES.MPD_015,
+      `Unknown theme "${themeAttr}". The runtime would fall back to classic-light.\n  Available themes: ${KNOWN_THEMES.join(', ')}.`,
+      filePath, loc, themeAttr.length,
+    ));
+  }
+
   // Collect declared identifiers for MPD-003 checks
   const stateNames    = new Set<string>();
   const computedNames = new Set<string>();

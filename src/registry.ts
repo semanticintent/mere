@@ -322,12 +322,242 @@ export const REGISTRY: ElementMeta[] = [
 
 export const REGISTRY_MAP = new Map(REGISTRY.map(e => [e.tag, e]));
 
+// Only themes with a stylesheet in src/themes/ and an entry in the runtime's
+// THEMES map belong here. corporate-light, ecommerce-hero and notion-paper were
+// listed until v0.6.0 with neither: `mere check` accepted them and the runtime
+// then fell back to classic-light with a console warning, so a generator could
+// emit a workbook that silently rendered as something else.
 export const KNOWN_THEMES = [
   'classic-light',
   'proton-mail',
-  'corporate-light',
-  'ecommerce-hero',
-  'notion-paper',
   'brutalist',
   'warm-brutalist',
 ] as const;
+
+// ─── Language registry ────────────────────────────────────────────────────────
+//
+// Everything below describes the language itself — state types, action
+// statements, computed operators, and diagnostics. It exists so the published
+// spec can be GENERATED from the implementation rather than hand-maintained
+// alongside it.
+//
+// Before this existed, docs/spec.md and mere-site/src/spec.html had drifted
+// into a stale subset of the real language: 4 of 6 state types, 4 of 7
+// statements, and 0 of 12 computed operators. Since the spec is documentation
+// for the *generator* (an AI producing workbooks), that drift silently
+// degraded generation quality — it was a product defect, not a docs chore.
+//
+// Rule: add a feature here in the same commit that implements it, and
+// `npm run generate-spec` propagates it to every published surface.
+
+export interface StateTypeMeta {
+  type: string;
+  description: string;
+  emptyValue: string;   // what an omitted value= yields (defaultFor(), state.ts)
+}
+
+export const STATE_TYPES: StateTypeMeta[] = [
+  {
+    type: 'text',
+    description: 'A string value.',
+    emptyValue: '""',
+  },
+  {
+    type: 'number',
+    description: 'A numeric value. value= is parsed with Number().',
+    emptyValue: '0',
+  },
+  {
+    type: 'boolean',
+    description: 'A true/false value. value= is true only for the exact string "true".',
+    emptyValue: 'false',
+  },
+  {
+    type: 'list',
+    description: 'An ordered collection of records. value= is parsed as JSON; malformed JSON falls back to an empty list.',
+    emptyValue: '[]',
+  },
+  {
+    type: 'map',
+    description: 'A key/value record, read with dotted paths (@selected-message.subject). Parsed as JSON; malformed JSON falls back to an empty map.',
+    emptyValue: '{}',
+  },
+  {
+    type: 'record-list',
+    description: 'A list with a declared field schema — <field name= type= default=> children. Enables add-to key validation (MPD-009) and per-field type coercion.',
+    emptyValue: '[]',
+  },
+];
+
+export interface StatementMeta {
+  keyword: string;
+  grammar: string;
+  description: string;
+}
+
+export const STATEMENTS: StatementMeta[] = [
+  {
+    keyword: 'set',
+    grammar: 'set <target> to <value> [where <condition>]',
+    description: 'Assign a value. With where, updates the matching field on every matching record (set habits.done to "true" where id = hid), or selects a matching record into a map value.',
+  },
+  {
+    keyword: 'clear',
+    grammar: 'clear <target>',
+    description: 'Reset a state value to the empty value for its type.',
+  },
+  {
+    keyword: 'go-to',
+    grammar: 'go-to <screen> [with <key> = <value> ...]',
+    description: 'Navigate to a screen, optionally passing parameters. Parameters must be declared in the target screen’s takes= (MPD-010).',
+  },
+  {
+    keyword: 'add-to',
+    grammar: 'add-to <list> <key> <value> [<key> <value> ...]',
+    description: 'Append a record to a list. Keys are validated against the record-list schema when one is declared (MPD-009).',
+  },
+  {
+    keyword: 'remove-from',
+    grammar: 'remove-from <list> where <condition>',
+    description: 'Remove every record in the list matching the condition.',
+  },
+  {
+    keyword: 'increment',
+    grammar: 'increment <target> [by <n>]',
+    description: 'Add to a number state value. Step defaults to 1.',
+  },
+  {
+    keyword: 'decrement',
+    grammar: 'decrement <target> [by <n>]',
+    description: 'Subtract from a number state value. Step defaults to 1.',
+  },
+];
+
+export interface ComputedOpMeta {
+  op: string;
+  source: 'list' | 'pair';   // 'pair' = from="a,b", two scalar state names
+  requires: string[];        // attributes without which the op returns 0/[] (MPD-013)
+  optional: string[];
+  description: string;
+}
+
+export const COMPUTED_OPS: ComputedOpMeta[] = [
+  // Scalar arithmetic over two named state values
+  {
+    op: 'add',
+    source: 'pair',
+    requires: [],
+    optional: [],
+    description: 'a + b, where from="a,b" names two number state values.',
+  },
+  {
+    op: 'subtract',
+    source: 'pair',
+    requires: [],
+    optional: [],
+    description: 'a − b, where from="a,b" names two number state values.',
+  },
+  {
+    op: 'percent',
+    source: 'pair',
+    requires: [],
+    optional: [],
+    description: 'a ÷ b × 100, rounded to a whole number. Returns 0 when b is 0.',
+  },
+  {
+    op: 'percent-of',
+    source: 'pair',
+    requires: [],
+    optional: [],
+    description: 'a × b ÷ 100 — b percent of a.',
+  },
+
+  // Aggregations over a list / record-list, filtered by where= first
+  {
+    op: 'count',
+    source: 'list',
+    requires: [],
+    optional: ['where'],
+    description: 'Number of items remaining after the where filter.',
+  },
+  {
+    op: 'sum',
+    source: 'list',
+    requires: ['field'],
+    optional: ['where'],
+    description: 'Adds field across every matching item.',
+  },
+  {
+    op: 'avg',
+    source: 'list',
+    requires: ['field'],
+    optional: ['where', 'window'],
+    description: 'Mean of field, rounded to a whole number. window="N" averages only the last N items.',
+  },
+  {
+    op: 'min',
+    source: 'list',
+    requires: ['field'],
+    optional: ['where', 'window'],
+    description: 'Smallest value of field. window="N" considers only the last N items.',
+  },
+  {
+    op: 'max',
+    source: 'list',
+    requires: ['field'],
+    optional: ['where', 'window'],
+    description: 'Largest value of field. window="N" considers only the last N items.',
+  },
+  {
+    op: 'sum-product',
+    source: 'list',
+    requires: ['field', 'by'],
+    optional: ['where'],
+    description: 'Sum of field × by across matching items — line-item totals in one declaration.',
+  },
+  {
+    op: 'group-by',
+    source: 'list',
+    requires: ['field', 'by'],
+    optional: [],
+    description: 'Groups items by the by field, summing field within each group. Returns a list of { key, value } sorted by value descending — feeds <chart from="..." field="value" label="key">.',
+  },
+  {
+    op: 'streak',
+    source: 'list',
+    requires: ['field'],
+    optional: ['by', 'where'],
+    description: 'Counts consecutive items, from the most recent backwards, whose field is truthy. by= names a date field to sort by (descending) before counting.',
+  },
+];
+
+export interface DiagnosticMeta {
+  code: string;
+  description: string;
+  emitted: boolean;   // false = code is reserved and stable, but no check produces it yet
+}
+
+// Descriptions and emission status for every MPD code. Category and severity
+// live in src/cli/diagnostics.ts (CODES); `mere schema --json` joins the two
+// and fails loudly if they ever disagree, so a new code cannot ship
+// undocumented and a documented code cannot silently disappear.
+//
+// Codes are stable forever and are never renumbered or reused — including
+// reserved ones. New checks take the next free number after MPD-014.
+export const DIAGNOSTIC_DOCS: DiagnosticMeta[] = [
+  { code: 'MPD-001', emitted: true,  description: 'Workbook root element missing, unreadable, or invalid.' },
+  { code: 'MPD-002', emitted: true,  description: 'Tag is not in the element registry.' },
+  { code: 'MPD-003', emitted: true,  description: 'A sigil references state, a computed value, or an action that is not declared.' },
+  { code: 'MPD-004', emitted: true,  description: 'Malformed sigil — @, ~, or ! with no identifier after it.' },
+  { code: 'MPD-005', emitted: false, description: 'Binding to an incompatible state type.' },
+  { code: 'MPD-006', emitted: false, description: 'Action invoked with the wrong number of arguments.' },
+  { code: 'MPD-007', emitted: true,  description: 'Two-way binding (~) targets a computed value, which is read-only.' },
+  { code: 'MPD-008', emitted: true,  description: 'Circular computed value dependency.' },
+  { code: 'MPD-009', emitted: true,  description: 'add-to uses a key that is not declared in the record-list schema.' },
+  { code: 'MPD-010', emitted: true,  description: 'go-to passes a parameter the target screen does not declare in takes=.' },
+  { code: 'MPD-011', emitted: true,  description: '<chart from="..."> does not reference a list or record-list state value.' },
+  { code: 'MPD-012', emitted: true,  description: '<chart field="..."> is not declared in the record-list schema (warning).' },
+  { code: 'MPD-013', emitted: true,  description: 'A computed op is missing a field= or by= attribute it requires.' },
+  { code: 'MPD-014', emitted: true,  description: 'Self-closing tag — no Mere tag is an HTML void element, so /> silently nests what follows.' },
+  { code: 'MPD-015', emitted: true,  description: 'theme= names a theme that does not exist; the runtime would silently fall back to classic-light.' },
+]

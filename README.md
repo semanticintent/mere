@@ -64,9 +64,9 @@ Save as `tasks.mp.html`. Double-click. It runs.
 
 ---
 
-## 40 elements. No HTML passthrough.
+## <!-- BEGIN GENERATED: elementCount -->40<!-- END GENERATED: elementCount --> elements. No HTML passthrough.
 
-`screen` `header` `footer` `form` `toolbar` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `camera` `kv` `chart` `modal` `toast` `banner` `sidebar` `sidebar-brand` `sidebar-section` `data-table` `column` `search-bar` `spreadsheet` `metric` `metric-group` `bar`
+<!-- BEGIN GENERATED: elementList -->`screen` `header` `footer` `form` `toolbar` `heading` `subtitle` `paragraph` `timestamp` `badge` `avatar` `icon` `tab-bar` `tab` `navigation-bar` `nav-item` `message-list` `card-list` `list` `message-card` `card` `field` `button` `toggle` `camera` `kv` `chart` `modal` `toast` `banner` `sidebar` `sidebar-brand` `sidebar-section` `data-table` `column` `search-bar` `spreadsheet` `metric` `metric-group` `bar`<!-- END GENERATED: elementList -->
 
 Every element has a specific role. The vocabulary is closed by design — bounded enough for AI to generate reliably, expressive enough for real apps.
 
@@ -93,14 +93,16 @@ mere schema --json            # machine-readable JSON
 
 ---
 
-## Four themes
+## <!-- BEGIN GENERATED: themeCount -->4<!-- END GENERATED: themeCount --> themes
 
+<!-- BEGIN GENERATED: themes -->
 | Theme | Character |
-|-------|-----------|
-| `classic-light` | Neutral baseline. Clean cards, comfortable spacing. Default. |
+|---|---|
+| `classic-light` | Neutral baseline. Clean cards, comfortable spacing. The default. |
 | `proton-mail` | Purple accent, underline tabs, 14px base type. |
 | `brutalist` | Zero radius, 3px black borders, inverted header, red accent. |
-| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius. Bold structure without the cold palette — brutalist's warmer sibling. |
+| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius — brutalist’s warmer sibling. |
+<!-- END GENERATED: themes -->
 
 ---
 

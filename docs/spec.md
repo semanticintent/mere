@@ -102,13 +102,16 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 
 ### Value types
 
-| Type | Description |
-|------|-------------|
-| `text` | A string value |
-| `number` | A numeric value |
-| `boolean` | A true/false value |
-| `list` | An ordered collection of records |
-| `map` | A key-value record |
+<!-- BEGIN GENERATED: stateTypes -->
+| Type | Empty value | Description |
+|---|---|---|
+| `text` | `""` | A string value. |
+| `number` | `0` | A numeric value. value= is parsed with Number(). |
+| `boolean` | `false` | A true/false value. value= is true only for the exact string "true". |
+| `list` | `[]` | An ordered collection of records. value= is parsed as JSON; malformed JSON falls back to an empty list. |
+| `map` | `{}` | A key/value record, read with dotted paths (@selected-message.subject). Parsed as JSON; malformed JSON falls back to an empty map. |
+| `record-list` | `[]` | A list with a declared field schema — <field name= type= default=> children. Enables add-to key validation (MPD-009) and per-field type coercion. |
+<!-- END GENERATED: stateTypes -->
 
 ### Persistence
 
@@ -143,6 +146,29 @@ Computed values are derived from state. They are lazy and memoized — invalidat
 ```
 
 Computed values are read-only. Two-way binding to a computed value is an error (MPD-007).
+
+### Operators
+
+`op=` selects the aggregation. Omitting `op=` with a `where=` filter yields the filtered
+list itself. Missing a required attribute is an error (MPD-013).
+
+<!-- BEGIN GENERATED: computedOps -->
+| Operator | Source | Requires | Optional | Description |
+|---|---|---|---|---|
+| `add` | `from="a,b"` | — | — | a + b, where from="a,b" names two number state values. |
+| `subtract` | `from="a,b"` | — | — | a − b, where from="a,b" names two number state values. |
+| `percent` | `from="a,b"` | — | — | a ÷ b × 100, rounded to a whole number. Returns 0 when b is 0. |
+| `percent-of` | `from="a,b"` | — | — | a × b ÷ 100 — b percent of a. |
+| `count` | list | — | where | Number of items remaining after the where filter. |
+| `sum` | list | field | where | Adds field across every matching item. |
+| `avg` | list | field | where, window | Mean of field, rounded to a whole number. window="N" averages only the last N items. |
+| `min` | list | field | where, window | Smallest value of field. window="N" considers only the last N items. |
+| `max` | list | field | where, window | Largest value of field. window="N" considers only the last N items. |
+| `sum-product` | list | field, by | where | Sum of field × by across matching items — line-item totals in one declaration. |
+| `group-by` | list | field, by | — | Groups items by the by field, summing field within each group. Returns a list of { key, value } sorted by value descending — feeds <chart from="..." field="value" label="key">. |
+| `streak` | list | field | by, where | Counts consecutive items, from the most recent backwards, whose field is truthy. by= names a date field to sort by (descending) before counting. |
+<!-- END GENERATED: computedOps -->
+
 Circular computed dependencies are an error (MPD-008).
 
 **The `"all"` convention:** When the right-hand side of a `where` clause resolves to `"all"` or `""`, the filter is skipped and all items are returned. This enables the standard "All / Category / Category" tab pattern without special-casing in the workbook.
@@ -171,11 +197,23 @@ Actions declare what the user can do. They are invoked by `!` sigils on elements
 
 ### Action grammar
 
-```
-set <state-name> to <value>
-set <state-name>.<field> to <value> where <condition>
-go-to <screen-name>
-```
+One statement per line inside `<action>`. Plain text, not XML children.
+
+<!-- BEGIN GENERATED: statements -->
+| Statement | Grammar | Description |
+|---|---|---|
+| `set` | `set <target> to <value> [where <condition>]` | Assign a value. With where, updates the matching field on every matching record (set habits.done to "true" where id = hid), or selects a matching record into a map value. |
+| `clear` | `clear <target>` | Reset a state value to the empty value for its type. |
+| `go-to` | `go-to <screen> [with <key> = <value> ...]` | Navigate to a screen, optionally passing parameters. Parameters must be declared in the target screen’s takes= (MPD-010). |
+| `add-to` | `add-to <list> <key> <value> [<key> <value> ...]` | Append a record to a list. Keys are validated against the record-list schema when one is declared (MPD-009). |
+| `remove-from` | `remove-from <list> where <condition>` | Remove every record in the list matching the condition. |
+| `increment` | `increment <target> [by <n>]` | Add to a number state value. Step defaults to 1. |
+| `decrement` | `decrement <target> [by <n>]` | Subtract from a number state value. Step defaults to 1. |
+<!-- END GENERATED: statements -->
+
+The `where` condition is a single `field = value` comparison. The left side is always
+a field on the record being tested; the right side resolves in order: a quoted literal,
+`true`/`false`, an action parameter, a state value, and finally a bare string.
 
 ### Action invocation with arguments
 
@@ -200,35 +238,54 @@ A screen is a full view. A workbook has one or more screens. Navigation between 
 
 ---
 
-## Semantic vocabulary (v0.1)
+## Semantic vocabulary
 
-### Structural
-- `screen` — a full screen
-- `header`, `footer` — top and bottom zones
-- `form` — structural grouping for inputs; no implicit submit behavior
+Every element, generated from the registry the runtime and `mere check` both read.
 
-### Text
-- `heading`, `subtitle`, `paragraph`, `timestamp` — text display elements
-
-### Visual
-- `badge`, `avatar`, `icon` — small visual elements
-
-### Navigation
-- `tab-bar`, `tab` — horizontal switcher; binds to state via `~`
-- `navigation-bar`, `nav-item` — bottom or top navigation between screens
-
-### Collections
-- `message-list`, `card-list`, `list` — collections rendered from a state list
-
-### Content containers
-- `message-card`, `card` — tappable content containers
-
-### Inputs
-- `field`, `button` — input elements
-- `toggle` — boolean state switch; binds via `~`
-
-### Surfaces
-- `modal`, `toast`, `banner` — overlay and notification elements
+<!-- BEGIN GENERATED: elements -->
+| Element | Sigils | Passthrough attrs | Description |
+|---|---|---|---|
+| `screen` | ? | name | A full screen. Entry point for navigation. |
+| `header` | ? | — | Top zone of a screen or card. |
+| `footer` | ? | — | Bottom zone of a screen. |
+| `form` | ? | — | Structural grouping for inputs. No implicit submit. |
+| `toolbar` | ? | — | Flex row wrapper for a search-bar plus inline actions, with padding and gap. |
+| `heading` | @ ? | — | Primary text — title or name. |
+| `subtitle` | @ ? | — | Secondary text — description or metadata. |
+| `paragraph` | @ ? | — | Body text. Supports multiline content. |
+| `timestamp` | @ ? | — | Date/time display. Formatted relative to now. |
+| `badge` | @ ? | — | Numeric or short text indicator. Hidden when value is 0 or empty. |
+| `avatar` | @ ? | — | Circular image or initials. Renders image if value is a URL. |
+| `icon` | ? | — | Named icon glyph. |
+| `tab-bar` | ~ ? | — | Horizontal tab switcher. Binds to a text state value via ~. |
+| `tab` | ? | — | A single tab inside a tab-bar. First positional attr is its value. |
+| `navigation-bar` | ? | — | Bottom or top navigation bar. First positional attr is position. |
+| `nav-item` | ! ? | — | Navigation action. First positional attr is the target screen name. |
+| `message-list` | @ ? | — | Renders a list of messages from a list state value via @. |
+| `card-list` | @ ? | — | Renders a list of cards from a list state value via @. |
+| `list` | @ ? | — | Generic list. Renders items from a list state value via @. |
+| `message-card` | ! ? | — | Tappable message row. Use inside message-list. |
+| `card` | ! ? | — | Content container with border and padding. |
+| `field` | ~ ? | placeholder, type, required, min, max, pattern, autocomplete, name | Text input. Binds two-way to state via ~. |
+| `button` | ! ? | type | Action trigger. Invokes an action via !. |
+| `toggle` | ~ ? | — | Boolean switch. Binds two-way to a boolean state via ~. |
+| `camera` | ~ ? | facing, name | Photo capture. Opens the device camera via the OS picker (no live preview stream). Binds two-way to a map state value via ~ — writes { dataUrl, capturedAt }. facing=user\|environment hints front vs back camera. |
+| `kv` | @ ? | label, format | Key/value row. label= sets the label, @ binds the value. format=currency\|percent for numeric formatting. |
+| `chart` | @ ? | type, from, field, label, where | Inline SVG chart. type=bar\|line\|pie. from= binds to a list state, field= is the numeric value, label= is the category label. |
+| `modal` | ? | — | Full-screen overlay dialog. |
+| `toast` | ? | — | Transient notification. Text content only. |
+| `banner` | ? | — | Persistent inline notification strip. |
+| `sidebar` | ? | — | Left navigation rail for layout="full". Container for sidebar-brand and sidebar-section. |
+| `sidebar-brand` | ? | — | Sidebar header/logo text. |
+| `sidebar-section` | ? | label | Grouped sidebar nav items under an optional label=. |
+| `data-table` | @ ! ? | — | Table from a list state via @. column children define fields; as=status-badge\|name-url\|contact\|currency\|product sets a special cell renderer. Optional ! binds a row-click action. |
+| `column` | ? | field, label, as, by, editable | Column definition inside data-table or spreadsheet. Declarative only — not rendered directly. |
+| `search-bar` | ~ ? | — | Text filter input with a search icon. Binds two-way via ~. |
+| `spreadsheet` | @ ? | — | Editable grid from a list state via @. column children define fields; editable on a column allows inline edits. |
+| `metric` | @ ? | format | Single KPI value with label. format=currency\|percent for numeric formatting. |
+| `metric-group` | ? | — | Layout container for multiple metric cards. |
+| `bar` | @ ? | label | Horizontal progress/comparison bar. label= sets the caption, @ binds a 0-100 value. |
+<!-- END GENERATED: elements -->
 
 ### HTML attribute passthrough
 
@@ -241,15 +298,14 @@ A screen is a full view. A workbook has one or more screens. Navigation between 
 
 Declared on `<workbook theme="...">`. Built-in themes:
 
+<!-- BEGIN GENERATED: themes -->
 | Theme | Character |
-|-------|-----------|
-| `classic-light` | Neutral baseline, safe |
-| `proton-mail` | Clean, minimal, Swiss-influenced, generous whitespace |
-| `corporate-light` | Restrained, conservative, trustworthy |
-| `ecommerce-hero` | Bold, high-contrast, confident, urgent |
-| `notion-paper` | Soft shadows, editorial spacing, paper-white surfaces |
-| `brutalist` | Hard edges, heavy type, no shadows, aggressive contrast |
-| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius — brutalist's warmer sibling |
+|---|---|
+| `classic-light` | Neutral baseline. Clean cards, comfortable spacing. The default. |
+| `proton-mail` | Purple accent, underline tabs, 14px base type. |
+| `brutalist` | Zero radius, 3px black borders, inverted header, red accent. |
+| `warm-brutalist` | Parchment and ink, restrained indigo accent, generous radius — brutalist’s warmer sibling. |
+<!-- END GENERATED: themes -->
 
 Themes define colors, typography, spacing, radii, shadows, and motion. Themes cannot change structure. A card is always a card; only its visual expression changes.
 
@@ -270,22 +326,27 @@ Any element may carry `?"natural-language intent"`. The runtime ignores intent a
 
 All errors have a stable code, a category, a message, and a source location (line, column, caret).
 
-| Code | Category | Description |
-|------|----------|-------------|
-| MPD-001 | structural | Workbook root element missing or invalid |
-| MPD-002 | unknown-element | Tag not in the element registry |
-| MPD-003 | unknown-identifier | Sigil references undeclared state or action |
-| MPD-004 | syntax | Malformed sigil attribute |
-| MPD-005 | type-mismatch | Binding to incompatible state type |
-| MPD-006 | structural | Action invoked with wrong number of arguments |
-| MPD-007 | structural | Two-way binding target is read-only |
-| MPD-008 | structural | Circular computed value dependency |
-| MPD-009 | type-mismatch | `add-to` field not declared in the record-list schema |
-| MPD-010 | unknown-identifier | `go-to` param not declared in the target screen's `takes` |
-| MPD-011 | type-mismatch | `<chart from=...>` does not reference a list or record-list state |
-| MPD-012 | type-mismatch (warning) | `<chart field=...>` not declared in the record-list schema |
-| MPD-013 | structural | Computed op requires a `field=` or `by=` attribute it's missing |
-| MPD-014 | syntax | Self-closing tag (`/>`) — not valid Mere syntax on any element |
+<!-- BEGIN GENERATED: diagnostics -->
+| Code | Category | Severity | Description |
+|---|---|---|---|
+| `MPD-001` | structural | error | Workbook root element missing, unreadable, or invalid. |
+| `MPD-002` | unknown-element | error | Tag is not in the element registry. |
+| `MPD-003` | unknown-identifier | error | A sigil references state, a computed value, or an action that is not declared. |
+| `MPD-004` | syntax | error | Malformed sigil — @, ~, or ! with no identifier after it. |
+| `MPD-005` | type-mismatch | error (reserved) | Binding to an incompatible state type. |
+| `MPD-006` | structural | error (reserved) | Action invoked with the wrong number of arguments. |
+| `MPD-007` | structural | error | Two-way binding (~) targets a computed value, which is read-only. |
+| `MPD-008` | structural | error | Circular computed value dependency. |
+| `MPD-009` | type-mismatch | error | add-to uses a key that is not declared in the record-list schema. |
+| `MPD-010` | unknown-identifier | error | go-to passes a parameter the target screen does not declare in takes=. |
+| `MPD-011` | type-mismatch | error | <chart from="..."> does not reference a list or record-list state value. |
+| `MPD-012` | type-mismatch | warning | <chart field="..."> is not declared in the record-list schema (warning). |
+| `MPD-013` | structural | error | A computed op is missing a field= or by= attribute it requires. |
+| `MPD-014` | syntax | error | Self-closing tag — no Mere tag is an HTML void element, so /> silently nests what follows. |
+| `MPD-015` | unknown-identifier | error | theme= names a theme that does not exist; the runtime would silently fall back to classic-light. |
+<!-- END GENERATED: diagnostics -->
+
+Codes are stable forever — never renumbered, never reused. Reserved codes are defined and permanently allocated but no check emits them yet.
 
 Command: `mere check workbook.mp` — validates without running. Exit 0 = clean, 1 = errors, 2 = warnings.
 

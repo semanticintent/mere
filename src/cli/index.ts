@@ -7,15 +7,27 @@ import { runDevCommand } from './dev.js';
 import { runDiffCommand } from './diff.js';
 import { runValidateCommand } from './validate.js';
 import { formatDiagnostic, formatSummary } from './diagnostics.js';
+import { buildDiagnosticTable } from './schema.js';
+import { VERSION } from '../version.js';
 
 // ─── CLI entry point ──────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
 const command = args[0];
 
+// Rendered from the same registry `mere schema` and the published spec read,
+// so help can never drift from the checker the way it did through v0.5.
+const DIAGNOSTIC_HELP = buildDiagnosticTable()
+  .map(d => {
+    const code = d.code.padEnd(9);
+    const cat  = (d.emitted ? d.category : d.category + ' (reserved)').padEnd(26);
+    return `  ${code}${cat}${d.description}`;
+  })
+  .join('\n');
+
 const HELP = `
 \x1b[1mMere\x1b[0m — a workbook format for apps
-\x1b[2mVersion 0.2.0\x1b[0m
+\x1b[2mVersion ${VERSION}\x1b[0m
 
 \x1b[1mUsage:\x1b[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
@@ -38,16 +50,9 @@ const HELP = `
   --no-open                Don't open the default browser automatically
 
 \x1b[1mDiagnostic codes:\x1b[0m
-  MPD-001  structural        Workbook root element missing or invalid
-  MPD-002  unknown-element   Tag not in the element registry
-  MPD-003  unknown-id        Sigil references undeclared state or action
-  MPD-004  syntax            Malformed sigil attribute
-  MPD-005  type-mismatch     Binding to incompatible state type
-  MPD-006  structural        Action invoked with wrong number of arguments
-  MPD-007  structural        Two-way binding target is read-only (computed value)
-  MPD-008  structural        Circular computed value dependency
+${DIAGNOSTIC_HELP}
 
-\x1b[2mFile extension: .mp (Mere Package)\x1b[0m
+\x1b[2mFile extension: .mp.html (Mere Package) — .mp also accepted\x1b[0m
 `;
 
 switch (command) {
