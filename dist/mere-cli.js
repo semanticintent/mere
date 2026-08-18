@@ -1485,7 +1485,7 @@ This proves the artifact changed since it was packed \u2014 not who changed it.`
 }
 
 // src/version.ts
-var VERSION = "0.5.0";
+var VERSION = "0.6.0";
 
 // src/cli/index.ts
 var args = process.argv.slice(2);
