@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { safeImageSrc } from '../src/runtime/safe-url.js';
 import { REGISTRY, STATE_TYPES, STATEMENTS, COMPUTED_OPS, DIAGNOSTIC_DOCS } from '../src/registry.js';
 
@@ -64,6 +65,33 @@ group('registry — codes are never renumbered', () => {
   const expected = ['MPD-001','MPD-002','MPD-003','MPD-004','MPD-005','MPD-006','MPD-007','MPD-008','MPD-009','MPD-010','MPD-011','MPD-012','MPD-013','MPD-014','MPD-015'];
   const actual = DIAGNOSTIC_DOCS.map(d => d.code);
   ok(expected.every((c, i) => actual[i] === c), 'MPD-001..014 present, in order, unrenumbered');
+});
+
+// ── Runtime invariant: state never reaches the DOM as markup ─────────────────
+//
+// Every @ binding must render through textContent. This is a security
+// invariant, not a style preference: state is untrusted input, so the moment
+// one binding is written through innerHTML the whole format has a stored-XSS
+// surface. Asserted against the source so a future "just this once" is caught
+// in CI rather than in a workbook someone forwarded.
+
+group('runtime — no markup sinks', () => {
+  // Bundled to a temp dir before running, so resolve from the repo root
+  // (npm scripts always run there) rather than from import.meta.url.
+  const src = readFileSync(`${process.cwd()}/src/runtime/elements.ts`, 'utf8');
+
+  // Clearing a container is fine; assigning anything else is not.
+  const assignments = [...src.matchAll(/\.innerHTML\s*=\s*([^;]+);/g)].map(m => m[1].trim());
+  const nonEmpty = assignments.filter(v => v !== "''" && v !== '""' && v !== '``');
+  ok(nonEmpty.length === 0, `innerHTML is only ever cleared (found: ${nonEmpty.join(' | ') || 'none'})`);
+
+  ok(!/\.outerHTML\s*=/.test(src), 'no outerHTML assignment');
+  ok(!/insertAdjacentHTML/.test(src), 'no insertAdjacentHTML');
+  ok(!/document\.write/.test(src), 'no document.write');
+
+  // The avatar element is the one place a state value reaches an attribute
+  // that can execute; it must go through the allowlist.
+  ok(/safeImageSrc\(/.test(src), 'image sources go through safeImageSrc');
 });
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

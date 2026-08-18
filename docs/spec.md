@@ -75,15 +75,32 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 
 ---
 
-## The five sigils
+## Three binding sigils, and an annotation
+
+Three sigils bind an element to the workbook. Each takes a bare identifier
+immediately after the sigil character.
 
 | Sigil | Role | Meaning |
 |-------|------|---------|
 | `@` | Read binding | Display a state value in this element |
 | `~` | Two-way binding | Element reads and writes this state |
 | `!` | Event handler | Invoke this action on interaction |
-| `?` | Intent annotation | Natural-language intent for AI compositors |
-| *(bare)* | Identifier or literal | Quoted strings are literals; unquoted words are identifiers |
+
+`?` is deliberately not one of them. It takes a **quoted string** rather than an
+identifier, it binds to nothing, and the runtime ignores it entirely:
+
+| Marker | Role | Meaning |
+|--------|------|---------|
+| `?` | Intent annotation | Natural-language intent for a generator. Inert at runtime. |
+
+The difference is visible in the diagnostics: MPD-004 flags a bare `@`, `~`, or
+`!` with no identifier after it, and pointedly does not apply to `?`, because
+there is no identifier for `?` to be missing. It is an annotation channel that
+travels in the same attribute position as the sigils, not a fourth binding.
+
+Outside the sigils, a bare attribute is an identifier or a literal: quoted
+strings are literals, unquoted words are identifiers, and inside a loop
+`item.field` references the current item.
 
 ---
 
@@ -115,7 +132,14 @@ A workbook has four sections, declared in order: `state`, `computed`, `actions`,
 
 ### Persistence
 
-Any state value declared with `persist` is automatically saved to OPFS and travels with the exported workbook file.
+Any state value declared with `persist` is automatically saved to the browser's
+Origin Private File System (OPFS), with a localStorage fallback.
+
+**Persisted data does not travel with the file.** OPFS is origin-scoped: the same
+workbook opened from `file://`, served from a domain, or forwarded to a colleague
+sees different persisted state. The file travels; the data stays where it was
+written. `persist` is a local convenience — "remember this on this device" — not
+a way to ship data inside the document.
 
 ```xml
 <value name="messages" type="list" persist></value>
@@ -319,6 +343,35 @@ Any element may carry `?"natural-language intent"`. The runtime ignores intent a
 <screen "inbox" ?"mobile inbox with tabs and message list">
 <card ?"show sender, subject, and timestamp in a compact row">
 ```
+
+---
+
+## Security and trust model
+
+A workbook is an ordinary HTML document containing the Mere runtime. Opening one
+executes its JavaScript, exactly like any other HTML file.
+
+**The vocabulary is not a security boundary.** The element registry and the MPD
+diagnostics constrain what *you* author with this toolchain. They constrain
+nothing about a file that arrives by other means: a hostile workbook can embed a
+modified runtime, or arbitrary script, and will still open in a browser. A
+`.mp.html` received from a third party carries exactly the trust model of any
+HTML attachment from that source — the small vocabulary does not make it safe.
+
+What the runtime does guarantee for the workbooks it renders:
+
+- State values render as **text**, never as markup. No `@` binding is written
+  through `innerHTML`.
+- A value bound into an image source passes a **scheme allowlist** — `https:`,
+  `http:`, root- or dot-relative paths, and `data:image/*`. Anything else, and
+  anything containing markup metacharacters, renders as text instead.
+- `camera` captures are re-encoded through a canvas before being stored, which
+  **discards EXIF metadata** — including GPS coordinates and device identifiers —
+  and downscales the image.
+
+`mere validate` confirms that a packed workbook still matches the source embedded
+in it at pack time. That is a tamper-detection check, not an authorship check: it
+tells you the file has not changed since it was packed, not who packed it.
 
 ---
 

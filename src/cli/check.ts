@@ -256,7 +256,7 @@ export function checkFile(filePath: string): Diagnostic[] {
     const navParams  = screenTakes.get(screenName) ?? new Set<string>();
     // Nav params are valid read bindings within their screen
     const screenStateIds = new Set([...allStateIds, ...navParams]);
-    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
+    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics, navParams);
   });
 
   // ── MPD-011/012: chart element validation ─────────────────────────────────
@@ -313,12 +313,18 @@ function walkElement(
   computedNames: Set<string>,
   actionNames: Set<string>,
   diags: Diagnostic[],
+  navParams: Set<string> = new Set(),
 ): void {
+  // Inside a screen declaring takes=, its parameters are valid identifiers too.
+  // Naming them in the message saves the "but I did declare it" round trip.
+  const declaredIn = navParams.size > 0
+    ? `<state>, <computed>, or this screen's takes="${[...navParams].join(' ')}"`
+    : '<state> or <computed>';
   const tag = el.tagName?.toLowerCase() ?? '';
   if (!tag || tag === 'screen') {
     // recurse into children
     el.childNodes.forEach(child => {
-      if (child.nodeType === 1) walkElement(child as NHTMLElement, source, file, stateIds, computedNames, actionNames, diags);
+      if (child.nodeType === 1) walkElement(child as NHTMLElement, source, file, stateIds, computedNames, actionNames, diags, navParams);
     });
     return;
   }
@@ -364,7 +370,7 @@ function walkElement(
         const loc = nodeLocation(source, el);
         diags.push(makeDiagnostic(
           CODES.MPD_003,
-          `"${statePath}" is not declared in <state> or <computed>.`,
+          `"${statePath}" is not declared in ${declaredIn}.`,
           file, loc, attrName.length,
         ));
       }
@@ -376,7 +382,7 @@ function walkElement(
         const loc = nodeLocation(source, el);
         diags.push(makeDiagnostic(
           CODES.MPD_003,
-          `"${stateName}" is not declared in <state> or <computed>.`,
+          `"${stateName}" is not declared in ${declaredIn}.`,
           file, loc, attrName.length,
         ));
       }
@@ -407,7 +413,7 @@ function walkElement(
 
   // Recurse
   el.childNodes.forEach(child => {
-    if (child.nodeType === 1) walkElement(child as NHTMLElement, source, file, stateIds, computedNames, actionNames, diags);
+    if (child.nodeType === 1) walkElement(child as NHTMLElement, source, file, stateIds, computedNames, actionNames, diags, navParams);
   });
 }
 

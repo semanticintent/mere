@@ -53,14 +53,20 @@ Save as `tasks.mp.html`. Double-click. It runs.
 
 ---
 
-## Four sigils. That's the grammar.
+## Three sigils bind. One annotates.
 
 | Sigil | Name | Example | Meaning |
 |-------|------|---------|---------|
 | `@` | read | `<heading @title>` | One-way binding from state. On list containers, iterates the array. |
 | `~` | two-way | `<field ~email>` | Bidirectional sync between input and state. |
 | `!` | action | `<button !submit>` | Invokes a named action on click. |
-| `?` | intent | `<screen ?"Show inbox">` | AI compositor annotation. Ignored at runtime. |
+
+Each takes a bare identifier. `?` is not a fourth binding — it takes a quoted
+string, binds to nothing, and is inert at runtime:
+
+| Marker | Example | Meaning |
+|--------|---------|---------|
+| `?` | `<screen ?"Show inbox">` | Natural-language intent for a generator. Ignored when the workbook runs. |
 
 ---
 

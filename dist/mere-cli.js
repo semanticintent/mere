@@ -759,7 +759,7 @@ function checkFile(filePath) {
     const screenName = screen.getAttribute("name") ?? "";
     const navParams = screenTakes.get(screenName) ?? /* @__PURE__ */ new Set();
     const screenStateIds = /* @__PURE__ */ new Set([...allStateIds, ...navParams]);
-    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics);
+    walkElement(screen, source, filePath, screenStateIds, computedNames, actionNames, diagnostics, navParams);
   });
   const listStateNames = /* @__PURE__ */ new Set();
   workbook.querySelectorAll("state > value").forEach((v) => {
@@ -799,11 +799,12 @@ function checkFile(filePath) {
   });
   return diagnostics;
 }
-function walkElement(el, source, file, stateIds, computedNames, actionNames, diags) {
+function walkElement(el, source, file, stateIds, computedNames, actionNames, diags, navParams = /* @__PURE__ */ new Set()) {
+  const declaredIn = navParams.size > 0 ? `<state>, <computed>, or this screen's takes="${[...navParams].join(" ")}"` : "<state> or <computed>";
   const tag = el.tagName?.toLowerCase() ?? "";
   if (!tag || tag === "screen") {
     el.childNodes.forEach((child) => {
-      if (child.nodeType === 1) walkElement(child, source, file, stateIds, computedNames, actionNames, diags);
+      if (child.nodeType === 1) walkElement(child, source, file, stateIds, computedNames, actionNames, diags, navParams);
     });
     return;
   }
@@ -841,7 +842,7 @@ function walkElement(el, source, file, stateIds, computedNames, actionNames, dia
         const loc = nodeLocation(source, el);
         diags.push(makeDiagnostic(
           CODES.MPD_003,
-          `"${statePath}" is not declared in <state> or <computed>.`,
+          `"${statePath}" is not declared in ${declaredIn}.`,
           file,
           loc,
           attrName.length
@@ -853,7 +854,7 @@ function walkElement(el, source, file, stateIds, computedNames, actionNames, dia
         const loc = nodeLocation(source, el);
         diags.push(makeDiagnostic(
           CODES.MPD_003,
-          `"${stateName}" is not declared in <state> or <computed>.`,
+          `"${stateName}" is not declared in ${declaredIn}.`,
           file,
           loc,
           attrName.length
@@ -884,7 +885,7 @@ function walkElement(el, source, file, stateIds, computedNames, actionNames, dia
     }
   }
   el.childNodes.forEach((child) => {
-    if (child.nodeType === 1) walkElement(child, source, file, stateIds, computedNames, actionNames, diags);
+    if (child.nodeType === 1) walkElement(child, source, file, stateIds, computedNames, actionNames, diags, navParams);
   });
 }
 function nodeLocation(source, el) {

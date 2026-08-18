@@ -37,7 +37,9 @@ The authoring surface is designed so non-programmers can learn it in an afternoo
 Mere ships with opinionated, production-quality themes. A workbook built in five minutes looks like a workbook built in five days. The visual baseline is not a premium feature.
 
 **6. Sovereign, not networked.**
-Workbooks work offline, forever, without permission. They do not phone home. They do not require sign-in. They outlive the vendor.
+Workbooks work offline, forever. They do not phone home. They do not require sign-in. They outlive the vendor.
+
+The one documented exception is `camera`, which needs an OS camera permission to capture a photo. Nothing about that capture leaves the machine — the image is re-encoded locally and written into the workbook's own state — but the permission prompt is real and the principle should not pretend otherwise.
 
 ---
 

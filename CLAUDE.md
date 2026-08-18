@@ -19,7 +19,7 @@ The name is the philosophy: a mere is a lake (still, self-contained) and "mere" 
 3. Restraint over capability — do not expand the vocabulary without explicit approval
 4. Readable by human and AI — clarity over cleverness
 5. Beautiful by default — themes are personalities, not palette swaps
-6. Sovereign, not networked — offline, forever, no permissions required
+6. Sovereign, not networked — offline, forever, no account, no server. (The `camera` element is the one documented exception: it needs an OS camera permission.)
 
 ## Implementation rules
 
