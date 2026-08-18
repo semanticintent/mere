@@ -1,6 +1,7 @@
 import type { ASTNode, RenderContext } from './types.js';
 import type { Store } from './state.js';
 import { resolveRead, bindRead, bindText, bindTwoWay, bindAction, renderChildren } from './renderer.js';
+import { safeImageSrc } from './safe-url.js';
 
 // ─── Element handler type ─────────────────────────────────────────────────────
 
@@ -131,10 +132,14 @@ const avatar: RenderFn = (node, store, context, onGoTo) => {
   const el = div('avatar');
   if (node.bindings.read) {
     bindRead(el, node.bindings.read, store, context, v => {
-      if (v.startsWith('http') || v.startsWith('/') || v.startsWith('data:')) {
-        el.innerHTML = `<img src="${v}" alt="">`;
+      const src = safeImageSrc(v);
+      if (src) {
+        const img = document.createElement('img');
+        img.src = src;   // property assignment — never parsed as markup
+        img.alt = '';
+        el.replaceChildren(img);
       } else {
-        // Use initials
+        // Fall back to initials for names, and for anything not on the allowlist
         el.textContent = v.slice(0, 2).toUpperCase();
       }
     });
@@ -348,6 +353,51 @@ const toggle: RenderFn = (node, store, context, onGoTo) => {
 // not a live getUserMedia stream — no permission prompt beyond the file picker itself,
 // no preview canvas to maintain, no wake-lock/backgrounding concerns.
 
+// Captured photos are re-encoded through a canvas rather than embedded as the
+// original file bytes. This does two necessary things at once:
+//
+//   1. Strips EXIF. Phone photos carry GPS coordinates, device id, and a
+//      timestamp. A workbook is meant to be forwarded — emailing a receipt
+//      photo to an accountant should not also ship a home address, and nothing
+//      in the file would show that it had.
+//   2. Downscales. Base64 inflates by ~33%, so full-resolution captures make
+//      workbooks that cannot be emailed and are slow to open.
+//
+// Browsers apply EXIF orientation when decoding, so drawing the decoded image
+// yields correctly-rotated output even though the metadata is discarded.
+const CAPTURE_MAX_EDGE = 1600;
+const CAPTURE_QUALITY  = 0.8;
+
+function processCapture(file: File): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const objectUrl = URL.createObjectURL(file);
+    const img = new Image();
+
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const scale = Math.min(1, CAPTURE_MAX_EDGE / Math.max(img.width, img.height));
+      const width  = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('[mere] camera: no 2d context')); return; }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', CAPTURE_QUALITY));
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('[mere] camera: could not decode the selected image'));
+    };
+
+    img.src = objectUrl;
+  });
+}
+
 const camera: RenderFn = (node, store, context, onGoTo) => {
   const wrapper = div('camera');
 
@@ -390,11 +440,9 @@ const camera: RenderFn = (node, store, context, onGoTo) => {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        store.set(stateName, { dataUrl: reader.result, capturedAt: new Date().toISOString() });
-      };
-      reader.readAsDataURL(file);
+      void processCapture(file).then(dataUrl => {
+        store.set(stateName, { dataUrl, capturedAt: new Date().toISOString() });
+      });
     });
   }
 
