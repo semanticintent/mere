@@ -1,6 +1,6 @@
 {
   "name": "@semanticintent/mere-cli",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A workbook format for apps. The file is the app.",
   "type": "module",
   "bin": {
