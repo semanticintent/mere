@@ -375,6 +375,28 @@ var STATEMENTS = [
     keyword: "decrement",
     grammar: "decrement <target> [by <n>]",
     description: "Subtract from a number state value. Step defaults to 1."
+  },
+  {
+    keyword: "save",
+    grammar: "save",
+    description: "Write every travel value back into the workbook file. Explicit by design \u2014 a workbook opened read-only from an attachment must not autosave. No effect if nothing is declared travel."
+  }
+];
+var STATE_MODIFIERS = [
+  {
+    modifier: "(none)",
+    travels: false,
+    description: "Transient. Lives for the session and is gone when the workbook closes."
+  },
+  {
+    modifier: "persist",
+    travels: false,
+    description: 'Saved locally to OPFS (localStorage fallback). Origin-scoped, so it does not travel with the file \u2014 "remember this on this device".'
+  },
+  {
+    modifier: "travel",
+    travels: true,
+    description: "Serialized into the workbook\u2019s own <value> attributes when a save statement runs. This data IS the document and ships wherever the file is sent."
   }
 ];
 var COMPUTED_OPS = [
@@ -480,7 +502,9 @@ var DIAGNOSTIC_DOCS = [
   { code: "MPD-012", emitted: true, description: '<chart field="..."> is not declared in the record-list schema (warning).' },
   { code: "MPD-013", emitted: true, description: "A computed op is missing a field= or by= attribute it requires." },
   { code: "MPD-014", emitted: true, description: "Self-closing tag \u2014 no Mere tag is an HTML void element, so /> silently nests what follows." },
-  { code: "MPD-015", emitted: true, description: "theme= names a theme that does not exist; the runtime would silently fall back to classic-light." }
+  { code: "MPD-015", emitted: true, description: "theme= names a theme that does not exist; the runtime would silently fall back to classic-light." },
+  { code: "MPD-016", emitted: true, description: "A value is declared both persist and travel. They mean opposite things \u2014 local-only versus ships-with-the-file \u2014 so one of them is a mistake." },
+  { code: "MPD-017", emitted: true, description: "A save statement runs but no value is declared travel, so saving would write nothing (warning)." }
 ];
 
 // src/cli/diagnostics.ts
@@ -499,7 +523,9 @@ var CODES = {
   MPD_012: { code: "MPD-012", category: "type-mismatch", severity: "warning" },
   MPD_013: { code: "MPD-013", category: "structural", severity: "error" },
   MPD_014: { code: "MPD-014", category: "syntax", severity: "error" },
-  MPD_015: { code: "MPD-015", category: "unknown-identifier", severity: "error" }
+  MPD_015: { code: "MPD-015", category: "unknown-identifier", severity: "error" },
+  MPD_016: { code: "MPD-016", category: "structural", severity: "error" },
+  MPD_017: { code: "MPD-017", category: "structural", severity: "warning" }
 };
 function offsetToLocation(source, offset) {
   const before = source.slice(0, Math.max(0, offset));
@@ -611,6 +637,38 @@ function checkFile(filePath) {
       loc,
       themeAttr.length
     ));
+  }
+  const travelNames = /* @__PURE__ */ new Set();
+  workbook.querySelectorAll("state > value").forEach((v) => {
+    const name = v.getAttribute("name");
+    if (!name) return;
+    const travels = v.hasAttribute("travel");
+    const persists = v.hasAttribute("persist");
+    if (travels) travelNames.add(name);
+    if (travels && persists) {
+      const loc = nodeLocation(source, v);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_016,
+        `"${name}" is declared both persist and travel. persist keeps a value on this device only; travel writes it into the file for anyone the workbook is sent to. Pick one.`,
+        filePath,
+        loc,
+        name.length
+      ));
+    }
+  });
+  if (travelNames.size === 0) {
+    workbook.querySelectorAll("actions > action").forEach((action) => {
+      const body = action.textContent ?? "";
+      if (!body.split("\n").some((l) => l.trim() === "save")) return;
+      const loc = nodeLocation(source, action);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_017,
+        "This action runs `save`, but no value is declared `travel`, so saving would write nothing. Add `travel` to the values that should ship with the file.",
+        filePath,
+        loc,
+        4
+      ));
+    });
   }
   const stateNames = /* @__PURE__ */ new Set();
   const computedNames = /* @__PURE__ */ new Set();
@@ -925,6 +983,7 @@ function buildLanguageRegistry() {
     elements: REGISTRY,
     themes: [...KNOWN_THEMES],
     stateTypes: STATE_TYPES,
+    stateModifiers: STATE_MODIFIERS,
     statements: STATEMENTS,
     computedOps: COMPUTED_OPS,
     diagnostics: buildDiagnosticTable()
@@ -964,6 +1023,9 @@ function printSchema(asJson) {
   line("");
   line("\x1B[1mState types\x1B[0m");
   line(STATE_TYPES.map((t) => t.type).join("  "));
+  line("");
+  line("\x1B[1mState modifiers\x1B[0m");
+  line(STATE_MODIFIERS.map((m) => m.modifier + (m.travels ? " (travels)" : "")).join("  "));
   line("");
   line("\x1B[1mAction statements\x1B[0m");
   for (const s of STATEMENTS) line("  " + s.grammar);
@@ -1485,6 +1547,140 @@ This proves the artifact changed since it was packed \u2014 not who changed it.`
   }
 }
 
+// src/cli/travel.ts
+import { readFileSync as readFileSync7 } from "fs";
+import { parse as parse5 } from "node-html-parser";
+var RESET2 = "\x1B[0m";
+var BOLD2 = "\x1B[1m";
+var DIM2 = "\x1B[2m";
+var CYAN2 = "\x1B[36m";
+var YELLOW2 = "\x1B[33m";
+var GREEN = "\x1B[32m";
+var SIZE_WARN_BYTES = 10 * 1024 * 1024;
+function humanBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+function hasExif(base64) {
+  const prefix = base64.slice(0, 8192);
+  let buf;
+  try {
+    buf = Buffer.from(prefix, "base64");
+  } catch {
+    return false;
+  }
+  return buf.includes(Buffer.from("Exif"));
+}
+function inspectValue(raw, type) {
+  const dataUrls = [...raw.matchAll(/data:image\/[a-z+]+;base64,([A-Za-z0-9+/=]+)/g)];
+  const images = dataUrls.length;
+  const imagesWithExif = dataUrls.filter((m) => hasExif(m[1] ?? "")).length;
+  let summary;
+  if (images > 0) {
+    summary = `${images} image${images === 1 ? "" : "s"}`;
+  } else if (type === "list" || type === "record-list") {
+    try {
+      const parsed = JSON.parse(raw || "[]");
+      const n = Array.isArray(parsed) ? parsed.length : 0;
+      summary = `${n} record${n === 1 ? "" : "s"}`;
+    } catch {
+      summary = "unparsed list";
+    }
+  } else if (type === "map") {
+    try {
+      const parsed = JSON.parse(raw || "{}");
+      const n = Object.keys(parsed).length;
+      summary = `${n} key${n === 1 ? "" : "s"}`;
+    } catch {
+      summary = "unparsed map";
+    }
+  } else {
+    summary = raw.length > 32 ? `"${raw.slice(0, 29)}\u2026"` : raw === "" ? "(empty)" : `"${raw}"`;
+  }
+  return { summary, images, imagesWithExif };
+}
+function runTravelReport(filePath) {
+  let source;
+  try {
+    source = readFileSync7(filePath, "utf8");
+  } catch {
+    console.error(`Cannot read file: ${filePath}`);
+    return 1;
+  }
+  const root = parse5(source, { comment: false });
+  const workbook = root.querySelector("workbook");
+  if (!workbook) {
+    console.error(`${filePath}: no <workbook> root element found.`);
+    return 1;
+  }
+  const values = [];
+  workbook.querySelectorAll("state > value").forEach((v) => {
+    const name = v.getAttribute("name");
+    if (!name) return;
+    const type = v.getAttribute("type") ?? "text";
+    const raw = v.getAttribute("value") ?? v.getAttribute("default") ?? "";
+    const modifier = v.hasAttribute("travel") ? "travel" : v.hasAttribute("persist") ? "persist" : "transient";
+    values.push({
+      name,
+      type,
+      modifier,
+      bytes: Buffer.byteLength(raw, "utf8"),
+      ...inspectValue(raw, type)
+    });
+  });
+  const travelling = values.filter((v) => v.modifier === "travel");
+  const staying = values.filter((v) => v.modifier !== "travel");
+  const totalBytes = travelling.reduce((n, v) => n + v.bytes, 0);
+  const exifCount = travelling.reduce((n, v) => n + v.imagesWithExif, 0);
+  const nameW = Math.max(12, ...values.map((v) => v.name.length));
+  const typeW = Math.max(11, ...values.map((v) => v.type.length));
+  console.log("");
+  console.log(`${BOLD2}${filePath}${RESET2}`);
+  console.log("");
+  if (travelling.length === 0) {
+    console.log(`${DIM2}No values are declared ${RESET2}travel${DIM2} \u2014 nothing in this workbook's state leaves the machine when it is sent.${RESET2}`);
+  } else {
+    console.log(`${BOLD2}TRAVEL STATE${RESET2} ${DIM2}(${travelling.length} value${travelling.length === 1 ? "" : "s"}, ${humanBytes(totalBytes)}) \u2014 ships with the file${RESET2}`);
+    for (const v of travelling) {
+      const warn = v.imagesWithExif > 0 ? `  ${YELLOW2}\u26A0 ${v.imagesWithExif} retain${v.imagesWithExif === 1 ? "s" : ""} EXIF metadata${RESET2}` : "";
+      console.log(
+        `  ${CYAN2}${v.name.padEnd(nameW)}${RESET2} ${v.type.padEnd(typeW)} ${v.summary.padEnd(18)} ${humanBytes(v.bytes).padStart(9)}${warn}`
+      );
+    }
+  }
+  if (staying.length > 0) {
+    console.log("");
+    console.log(`${BOLD2}NOT SENT${RESET2} ${DIM2}(transient and persist values stay on this machine)${RESET2}`);
+    for (const v of staying) {
+      console.log(
+        `  ${DIM2}${v.name.padEnd(nameW)} ${v.type.padEnd(typeW)} ${v.summary.padEnd(18)} ${v.modifier}${RESET2}`
+      );
+    }
+  }
+  const notes = [];
+  if (exifCount > 0) {
+    notes.push(
+      `${YELLOW2}\u26A0 ${exifCount} embedded image${exifCount === 1 ? "" : "s"} still carr${exifCount === 1 ? "ies" : "y"} EXIF metadata, which can include GPS coordinates.${RESET2}
+  Captures made by the camera element are stripped automatically; these were embedded another way.`
+    );
+  }
+  if (totalBytes > SIZE_WARN_BYTES) {
+    notes.push(
+      `${YELLOW2}\u26A0 Travel payload is ${humanBytes(totalBytes)}. Most mail servers reject attachments over ~25 MB.${RESET2}`
+    );
+  }
+  console.log("");
+  if (notes.length > 0) {
+    for (const n of notes) console.log(n);
+  } else if (travelling.length > 0) {
+    console.log(`${GREEN}\u2713 Nothing unexpected \u2014 ${humanBytes(totalBytes)} of declared state, no metadata warnings.${RESET2}`);
+  }
+  console.log("");
+  return exifCount > 0 || totalBytes > SIZE_WARN_BYTES ? 2 : 0;
+}
+var MODIFIER_NAMES = STATE_MODIFIERS.map((m) => m.modifier).join(", ");
+
 // src/version.ts
 var VERSION = "0.6.0";
 
@@ -1502,13 +1698,14 @@ var HELP = `
 
 \x1B[1mUsage:\x1B[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere check --travel <f> Report exactly what leaves the machine when this file is sent.
   mere inspect <file.mp>  Report screens, state, elements, theme, layout \u2014 the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere dev [path]         Serve workbooks locally with check-on-save and live reload.
   mere diff <a> <b>       Structural diff between two workbook versions \u2014 screens/state/computed/actions.
   mere validate <packed>  Confirm a packed file's workbook body still matches its embedded source.
-  mere schema             Print the element registry as a table.
-  mere schema --json      Print the element registry as JSON.
+  mere schema             Print the language registry as a table.
+  mere schema --json      Print the full language registry as JSON.
   mere help               Show this help.
 
 \x1B[1mmere pack options:\x1B[0m
@@ -1531,6 +1728,11 @@ switch (command) {
     if (files.length === 0) {
       console.error("Usage: mere check <file.mp> [file.mp ...]");
       process.exit(1);
+    }
+    if (args.includes("--travel")) {
+      let worst = 0;
+      for (const file of files) worst = Math.max(worst, runTravelReport(file));
+      process.exit(worst === 2 ? 2 : 0);
     }
     let totalErrors = 0;
     let totalWarnings = 0;

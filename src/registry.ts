@@ -431,6 +431,39 @@ export const STATEMENTS: StatementMeta[] = [
     grammar: 'decrement <target> [by <n>]',
     description: 'Subtract from a number state value. Step defaults to 1.',
   },
+  {
+    keyword: 'save',
+    grammar: 'save',
+    description: 'Write every travel value back into the workbook file. Explicit by design — a workbook opened read-only from an attachment must not autosave. No effect if nothing is declared travel.',
+  },
+];
+
+export interface StateModifierMeta {
+  modifier: string;
+  travels: boolean;
+  description: string;
+}
+
+// The three-way split is the primary privacy control in the format: data leaves
+// the machine only where an author wrote `travel` deliberately. Default-transient
+// means a stray field cannot leak by accident the way a hidden spreadsheet column
+// can.
+export const STATE_MODIFIERS: StateModifierMeta[] = [
+  {
+    modifier: '(none)',
+    travels: false,
+    description: 'Transient. Lives for the session and is gone when the workbook closes.',
+  },
+  {
+    modifier: 'persist',
+    travels: false,
+    description: 'Saved locally to OPFS (localStorage fallback). Origin-scoped, so it does not travel with the file — "remember this on this device".',
+  },
+  {
+    modifier: 'travel',
+    travels: true,
+    description: 'Serialized into the workbook’s own <value> attributes when a save statement runs. This data IS the document and ships wherever the file is sent.',
+  },
 ];
 
 export interface ComputedOpMeta {
@@ -560,4 +593,6 @@ export const DIAGNOSTIC_DOCS: DiagnosticMeta[] = [
   { code: 'MPD-013', emitted: true,  description: 'A computed op is missing a field= or by= attribute it requires.' },
   { code: 'MPD-014', emitted: true,  description: 'Self-closing tag — no Mere tag is an HTML void element, so /> silently nests what follows.' },
   { code: 'MPD-015', emitted: true,  description: 'theme= names a theme that does not exist; the runtime would silently fall back to classic-light.' },
+  { code: 'MPD-016', emitted: true,  description: 'A value is declared both persist and travel. They mean opposite things — local-only versus ships-with-the-file — so one of them is a mistake.' },
+  { code: 'MPD-017', emitted: true,  description: 'A save statement runs but no value is declared travel, so saving would write nothing (warning).' },
 ]

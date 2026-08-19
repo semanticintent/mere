@@ -2,6 +2,7 @@ import { parseWorkbook } from './parser.js';
 import { Store } from './state.js';
 import { Persist } from './persist.js';
 import { renderNode } from './renderer.js';
+import { captureSource, saveWorkbook, saveTier } from './save.js';
 import type { ASTNode } from './types.js';
 import classicLight from '../themes/classic-light.css';
 import protonMail from '../themes/proton-mail.css';
@@ -19,6 +20,11 @@ const THEMES: Record<string, string> = {
 // ─── Bootstrap ────────────────────────────────────────────────────────────────
 
 async function bootstrap(workbookEl: Element): Promise<void> {
+  // Snapshot the document as authored, before anything is rendered into it.
+  // Required for `save`, and only correct here — once screens render, the live
+  // DOM no longer resembles the file.
+  captureSource();
+
   // Parse
   const decl = parseWorkbook(workbookEl);
 
@@ -36,6 +42,22 @@ async function bootstrap(workbookEl: Element): Promise<void> {
     const persist = new Persist();
     await persist.init();
     await store.loadPersisted(persist);
+  }
+
+  // Wire `save` when the workbook declares travelling state
+  const hasTravel = decl.state.some(s => s.travel);
+  if (hasTravel) {
+    store.onSave = async () => {
+      const result = await saveWorkbook(decl.state, name => store.get(name));
+      if (result.cancelled) return;
+      const kb = (result.bytes / 1024).toFixed(1);
+      console.log(
+        result.tier === 'file-system-access'
+          ? `[mere] saved — ${kb} KB written`
+          : `[mere] saved — ${kb} KB downloaded as a copy (this browser cannot write in place)`,
+      );
+    };
+    console.log(`[mere] travelling state enabled — save tier: ${saveTier()}`);
   }
 
   // Build screen map

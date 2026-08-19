@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Travelling Notes — Mere</title>
+  <script src="../dist/mere-runtime.js"></script>
+</head>
+<body style="margin:0">
+
+<workbook theme="warm-brutalist">
+
+  <state>
+    <!-- travel: this IS the document. It is written back into this file on save
+         and ships with it to whoever receives it. -->
+    <value name="notes" type="record-list" value="[]" travel>
+      <field name="body" type="text"></field>
+      <field name="added" type="text"></field>
+    </value>
+
+    <!-- transient: a half-typed note should not be part of the document -->
+    <value name="draft" type="text" value=""></value>
+
+    <!-- persist: a local preference. Stays on this machine, never travels. -->
+    <value name="compact" type="boolean" value="false" persist></value>
+  </state>
+
+  <computed>
+    <value name="note-count" from="notes" op="count"></value>
+  </computed>
+
+  <actions>
+    <action name="add-note">
+      add-to notes body @draft added "today"
+      clear draft
+    </action>
+    <action name="save-workbook">
+      save
+    </action>
+  </actions>
+
+  <screen name="notes" ?"a notes list whose contents travel inside the file itself">
+
+    <header>
+      <heading>Notes</heading>
+      <badge @note-count></badge>
+    </header>
+
+    <card>
+      <subtitle>These notes are stored in this file. Save, then email it — they travel with it.</subtitle>
+      <toggle ~compact>Compact view (stays on this device)</toggle>
+    </card>
+
+    <form>
+      <field ~draft placeholder="Write a note…"></field>
+      <button !add-note>Add note</button>
+    </form>
+
+    <list @notes>
+      <card>
+        <heading @item.body></heading>
+        <subtitle @item.added></subtitle>
+      </card>
+    </list>
+
+    <footer>
+      <button !save-workbook>Save to file</button>
+    </footer>
+
+  </screen>
+
+</workbook>
+
+</body>
+</html>

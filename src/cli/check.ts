@@ -91,6 +91,41 @@ export function checkFile(filePath: string): Diagnostic[] {
     ));
   }
 
+  // ── MPD-016 / MPD-017: travelling state ───────────────────────────────────
+
+  const travelNames = new Set<string>();
+  workbook.querySelectorAll('state > value').forEach(v => {
+    const name = v.getAttribute('name');
+    if (!name) return;
+    const travels  = v.hasAttribute('travel');
+    const persists = v.hasAttribute('persist');
+    if (travels) travelNames.add(name);
+
+    // persist = "remember this on this device"; travel = "this is part of the
+    // document". Declaring both asks for local-only data that also ships.
+    if (travels && persists) {
+      const loc = nodeLocation(source, v);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_016,
+        `"${name}" is declared both persist and travel. persist keeps a value on this device only; travel writes it into the file for anyone the workbook is sent to. Pick one.`,
+        filePath, loc, name.length,
+      ));
+    }
+  });
+
+  if (travelNames.size === 0) {
+    workbook.querySelectorAll('actions > action').forEach(action => {
+      const body = action.textContent ?? '';
+      if (!body.split('\n').some(l => l.trim() === 'save')) return;
+      const loc = nodeLocation(source, action);
+      diagnostics.push(makeDiagnostic(
+        CODES.MPD_017,
+        'This action runs `save`, but no value is declared `travel`, so saving would write nothing. Add `travel` to the values that should ship with the file.',
+        filePath, loc, 4,
+      ));
+    });
+  }
+
   // Collect declared identifiers for MPD-003 checks
   const stateNames    = new Set<string>();
   const computedNames = new Set<string>();

@@ -46,6 +46,7 @@ var Mere = (() => {
         type,
         default: parseDefault(v.getAttribute("value") ?? v.getAttribute("default"), type),
         persist: v.hasAttribute("persist"),
+        travel: v.hasAttribute("travel"),
         fields
       };
     });
@@ -125,6 +126,10 @@ var Mere = (() => {
       const incrMatch = line.match(/^increment\s+(\S+)(?:\s+by\s+(\S+))?$/);
       if (incrMatch) {
         stmts.push({ kind: "increment", target: incrMatch[1], by: Number(incrMatch[2] ?? 1) });
+        continue;
+      }
+      if (line === "save") {
+        stmts.push({ kind: "save" });
         continue;
       }
       const decrMatch = line.match(/^decrement\s+(\S+)(?:\s+by\s+(\S+))?$/);
@@ -293,6 +298,8 @@ var Mere = (() => {
 
   // src/runtime/state.ts
   var Store = class {
+    /** Set at bootstrap when the workbook declares any `travel` state. */
+    onSave = null;
     values = /* @__PURE__ */ new Map();
     subs = /* @__PURE__ */ new Map();
     computed = [];
@@ -484,6 +491,9 @@ var Mere = (() => {
         } else if (stmt.kind === "decrement") {
           const cur = Number(this.values.get(stmt.target) ?? 0);
           this.set(stmt.target, cur - stmt.by);
+        } else if (stmt.kind === "save") {
+          if (this.onSave) void this.onSave();
+          else console.warn("[mere] save: no travel state declared, nothing to write");
         }
       }
     }
@@ -1712,6 +1722,76 @@ var Mere = (() => {
       store.invokeAction(actionName, args, argValues, onGoTo, context);
       console.log(`[mere] action: ${actionName}`, args, argValues);
     });
+  }
+
+  // src/runtime/save.ts
+  var sourceSnapshot = null;
+  function captureSource() {
+    if (sourceSnapshot !== null) return;
+    const doctype = document.doctype ? "<!DOCTYPE html>\n" : "";
+    sourceSnapshot = doctype + document.documentElement.outerHTML;
+  }
+  function serializeValue(value, type) {
+    if (value === void 0 || value === null) return "";
+    if (type === "list" || type === "record-list" || type === "map") {
+      return JSON.stringify(value);
+    }
+    if (type === "boolean") return value ? "true" : "false";
+    return String(value);
+  }
+  function serializeWorkbook(state, read) {
+    if (sourceSnapshot === null) {
+      throw new Error("[mere] save: no source snapshot \u2014 captureSource() was not called at bootstrap");
+    }
+    const doc = new DOMParser().parseFromString(sourceSnapshot, "text/html");
+    const stateEl = doc.querySelector("workbook > state");
+    if (!stateEl) throw new Error("[mere] save: workbook has no <state> block to write into");
+    for (const decl of state) {
+      if (!decl.travel) continue;
+      const valueEl = stateEl.querySelector(`:scope > value[name="${CSS.escape(decl.name)}"]`);
+      if (!valueEl) continue;
+      valueEl.setAttribute("value", serializeValue(read(decl.name), decl.type));
+    }
+    const doctype = doc.doctype ? "<!DOCTYPE html>\n" : "";
+    return doctype + doc.documentElement.outerHTML;
+  }
+  function saveTier() {
+    return typeof globalThis["showSaveFilePicker"] === "function" ? "file-system-access" : "download";
+  }
+  function suggestedName() {
+    const path = location.pathname.split("/").pop() || "workbook.mp.html";
+    return decodeURIComponent(path) || "workbook.mp.html";
+  }
+  async function saveWorkbook(state, read) {
+    const contents = serializeWorkbook(state, read);
+    const bytes = new Blob([contents]).size;
+    if (saveTier() === "file-system-access") {
+      try {
+        const picker = globalThis.showSaveFilePicker;
+        const handle = await picker({
+          suggestedName: suggestedName(),
+          types: [{ description: "Mere workbook", accept: { "text/html": [".mp.html"] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(contents);
+        await writable.close();
+        return { tier: "file-system-access", bytes, cancelled: false };
+      } catch (err) {
+        if (err && err.name === "AbortError") {
+          return { tier: "file-system-access", bytes, cancelled: true };
+        }
+        console.warn("[mere] save: file picker unavailable, downloading a copy instead", err);
+      }
+    }
+    const url = URL.createObjectURL(new Blob([contents], { type: "text/html" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return { tier: "download", bytes, cancelled: false };
   }
 
   // src/themes/classic-light.css
@@ -4815,6 +4895,7 @@ var Mere = (() => {
     "warm-brutalist": warm_brutalist_default
   };
   async function bootstrap(workbookEl) {
+    captureSource();
     const decl = parseWorkbook(workbookEl);
     injectTheme(decl.theme);
     const store = new Store();
@@ -4825,6 +4906,18 @@ var Mere = (() => {
       const persist = new Persist();
       await persist.init();
       await store.loadPersisted(persist);
+    }
+    const hasTravel = decl.state.some((s) => s.travel);
+    if (hasTravel) {
+      store.onSave = async () => {
+        const result = await saveWorkbook(decl.state, (name) => store.get(name));
+        if (result.cancelled) return;
+        const kb = (result.bytes / 1024).toFixed(1);
+        console.log(
+          result.tier === "file-system-access" ? `[mere] saved \u2014 ${kb} KB written` : `[mere] saved \u2014 ${kb} KB downloaded as a copy (this browser cannot write in place)`
+        );
+      };
+      console.log(`[mere] travelling state enabled \u2014 save tier: ${saveTier()}`);
     }
     const screenMap = new Map(decl.screens.map((s) => [s.name, s]));
     let currentScreenEl = null;

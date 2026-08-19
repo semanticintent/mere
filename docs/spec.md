@@ -130,20 +130,38 @@ strings are literals, unquoted words are identifiers, and inside a loop
 | `record-list` | `[]` | A list with a declared field schema — <field name= type= default=> children. Enables add-to key validation (MPD-009) and per-field type coercion. |
 <!-- END GENERATED: stateTypes -->
 
-### Persistence
+### Persistence and travel
 
-Any state value declared with `persist` is automatically saved to the browser's
-Origin Private File System (OPFS), with a localStorage fallback.
+A value's modifier decides where it lives — and, critically, whether it leaves
+this machine. The default is transient, so data ships only where an author wrote
+`travel` deliberately.
 
-**Persisted data does not travel with the file.** OPFS is origin-scoped: the same
-workbook opened from `file://`, served from a domain, or forwarded to a colleague
-sees different persisted state. The file travels; the data stays where it was
-written. `persist` is a local convenience — "remember this on this device" — not
-a way to ship data inside the document.
+<!-- BEGIN GENERATED: stateModifiers -->
+| Modifier | Leaves the machine? | Meaning |
+|---|---|---|
+| (none) | No | Transient. Lives for the session and is gone when the workbook closes. |
+| `persist` | No | Saved locally to OPFS (localStorage fallback). Origin-scoped, so it does not travel with the file — "remember this on this device". |
+| `travel` | Yes — ships with the file | Serialized into the workbook’s own <value> attributes when a save statement runs. This data IS the document and ships wherever the file is sent. |
+<!-- END GENERATED: stateModifiers -->
 
 ```xml
-<value name="messages" type="list" persist></value>
+<value name="draft"  type="text" value=""></value>            <!-- transient -->
+<value name="theme"  type="text" value="light" persist></value> <!-- this device only -->
+<value name="tasks"  type="list" value="[]" travel></value>     <!-- ships with the file -->
 ```
+
+`persist` writes to the browser's Origin Private File System (localStorage
+fallback). OPFS is **origin-scoped**: the same workbook opened from `file://`,
+served from a domain, or forwarded to a colleague sees different persisted
+state. The file travels; persisted data does not.
+
+`travel` closes that gap. On `save`, every travel value is written back into the
+workbook's own `<value>` attributes, so the data *is* the document — readable in
+a text editor, diffable in git, and present wherever the file is sent. Declaring
+a value both `persist` and `travel` is a contradiction and an error (MPD-016).
+
+Run `mere check --travel <file>` to see exactly what would leave the machine
+before sending it.
 
 ### Nested access
 
@@ -233,6 +251,7 @@ One statement per line inside `<action>`. Plain text, not XML children.
 | `remove-from` | `remove-from <list> where <condition>` | Remove every record in the list matching the condition. |
 | `increment` | `increment <target> [by <n>]` | Add to a number state value. Step defaults to 1. |
 | `decrement` | `decrement <target> [by <n>]` | Subtract from a number state value. Step defaults to 1. |
+| `save` | `save` | Write every travel value back into the workbook file. Explicit by design — a workbook opened read-only from an attachment must not autosave. No effect if nothing is declared travel. |
 <!-- END GENERATED: statements -->
 
 The `where` condition is a single `field = value` comparison. The left side is always
@@ -397,6 +416,8 @@ All errors have a stable code, a category, a message, and a source location (lin
 | `MPD-013` | structural | error | A computed op is missing a field= or by= attribute it requires. |
 | `MPD-014` | syntax | error | Self-closing tag — no Mere tag is an HTML void element, so /> silently nests what follows. |
 | `MPD-015` | unknown-identifier | error | theme= names a theme that does not exist; the runtime would silently fall back to classic-light. |
+| `MPD-016` | structural | error | A value is declared both persist and travel. They mean opposite things — local-only versus ships-with-the-file — so one of them is a mistake. |
+| `MPD-017` | structural | warning | A save statement runs but no value is declared travel, so saving would write nothing (warning). |
 <!-- END GENERATED: diagnostics -->
 
 Codes are stable forever — never renumbered, never reused. Reserved codes are defined and permanently allocated but no check emits them yet.

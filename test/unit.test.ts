@@ -1,5 +1,10 @@
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync, mkdtempSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+import { parse } from 'node-html-parser';
 import { safeImageSrc } from '../src/runtime/safe-url.js';
+import { serializeValue } from '../src/runtime/save.js';
+import { checkFile } from '../src/cli/check.js';
 import { REGISTRY, STATE_TYPES, STATEMENTS, COMPUTED_OPS, DIAGNOSTIC_DOCS } from '../src/registry.js';
 
 // Minimal assertion harness — no test framework, no dependencies.
@@ -62,7 +67,7 @@ group('registry — well-formed entries', () => {
 group('registry — codes are never renumbered', () => {
   // MPD codes are a permanent public contract. This asserts the historical
   // prefix is intact; new codes append after it.
-  const expected = ['MPD-001','MPD-002','MPD-003','MPD-004','MPD-005','MPD-006','MPD-007','MPD-008','MPD-009','MPD-010','MPD-011','MPD-012','MPD-013','MPD-014','MPD-015'];
+  const expected = ['MPD-001','MPD-002','MPD-003','MPD-004','MPD-005','MPD-006','MPD-007','MPD-008','MPD-009','MPD-010','MPD-011','MPD-012','MPD-013','MPD-014','MPD-015','MPD-016','MPD-017'];
   const actual = DIAGNOSTIC_DOCS.map(d => d.code);
   ok(expected.every((c, i) => actual[i] === c), 'MPD-001..014 present, in order, unrenumbered');
 });
@@ -92,6 +97,59 @@ group('runtime — no markup sinks', () => {
   // The avatar element is the one place a state value reaches an attribute
   // that can execute; it must go through the allowlist.
   ok(/safeImageSrc\(/.test(src), 'image sources go through safeImageSrc');
+});
+
+// ── Travelling state ─────────────────────────────────────────────────────────
+
+group('serializeValue — round-trips through the value= attribute', () => {
+  ok(serializeValue('hello', 'text') === 'hello', 'text');
+  ok(serializeValue(42, 'number') === '42', 'number');
+  ok(serializeValue(true, 'boolean') === 'true', 'boolean true');
+  ok(serializeValue(false, 'boolean') === 'false', 'boolean false');
+  ok(serializeValue([{ a: 1 }], 'list') === '[{"a":1}]', 'list as JSON');
+  ok(serializeValue({ a: 1 }, 'map') === '{"a":1}', 'map as JSON');
+  ok(serializeValue(undefined, 'text') === '', 'undefined is empty, not "undefined"');
+  ok(serializeValue(null, 'text') === '', 'null is empty, not "null"');
+
+  // parseDefault reads these back; the pair must agree or saved data is lost.
+  const tricky = [{ body: 'He said "hi" <b>& left</b>' }];
+  const round = JSON.parse(serializeValue(tricky, 'list'));
+  ok(round[0].body === tricky[0].body, 'quotes and angle brackets survive the round trip');
+});
+
+group('a saved workbook is still a valid workbook', () => {
+  // The browser save path needs a DOM, so this reproduces the one thing it must
+  // get right: state written into value= has to survive HTML attribute
+  // serialization and come back byte-identical. Data containing quotes,
+  // angle brackets and ampersands is the case that breaks naive
+  // implementations — and it is exactly what a notes or receipts workbook holds.
+  //
+  // Escaping here follows the HTML serialization spec (& then "), which is what
+  // a browser's outerHTML does. Note that node-html-parser's own setAttribute
+  // is lossy for this input — it drops the backslash from \" — so the CLI must
+  // never be used to *write* attributes. It only ever reads them.
+  const escapeAttr = (v: string) => v.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+
+  const dir = mkdtempSync(join(tmpdir(), 'mere-travel-'));
+  const src = readFileSync(`${process.cwd()}/examples/travel-notes.mp.html`, 'utf8');
+
+  const body = 'Quotes " and <tags> & ampersands';
+  const payload = serializeValue([{ body, added: 'today' }], 'record-list');
+  const saved = src.replace(
+    /(<value name="notes"[^>]*?value=")([^"]*)(")/,
+    (_m, pre: string, _old: string, post: string) => pre + escapeAttr(payload) + post,
+  );
+  ok(saved !== src, 'travel value was rewritten');
+
+  const out = join(dir, 'saved.mp.html');
+  writeFileSync(out, saved);
+
+  const diags = checkFile(out).filter(d => d.severity === 'error');
+  ok(diags.length === 0, `saved file still passes mere check (${diags.map(d => d.code).join(', ') || 'clean'})`);
+
+  const reread = parse(readFileSync(out, 'utf8'), { comment: false })
+    .querySelector('state > value[name="notes"]')!.getAttribute('value')!;
+  ok(JSON.parse(reread)[0].body === body, 'payload survives save and re-parse byte-identical');
 });
 
 console.log(`\n${checks - failures}/${checks} checks passed`);

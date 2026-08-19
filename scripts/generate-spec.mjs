@@ -87,6 +87,17 @@ function stateTypes(html) {
   };
 }
 
+function stateModifiers(html) {
+  return {
+    headers: ['Modifier', 'Leaves the machine?', 'Meaning'],
+    rows: registry.stateModifiers.map(m => [
+      m.modifier === '(none)' ? txt('(none)', html) : code(m.modifier, html),
+      txt(m.travels ? 'Yes — ships with the file' : 'No', html),
+      txt(m.description, html),
+    ]),
+  };
+}
+
 function statements(html) {
   return {
     headers: ['Statement', 'Grammar', 'Description'],
@@ -148,7 +159,7 @@ function themeCards() {
   ].join('\n');
 }
 
-const SECTIONS = { elements, stateTypes, statements, computedOps, diagnostics, themes };
+const SECTIONS = { elements, stateTypes, stateModifiers, statements, computedOps, diagnostics, themes };
 
 // Inline scalars — the hand-maintained counts that drifted three times
 // (26 -> 39 -> 40) before this existed. Emitted as bare text inside markers.
@@ -217,7 +228,7 @@ function apply(path, label, html) {
 console.log('generate-spec: publishing language registry');
 console.log(
   `  registry: ${registry.elements.length} elements, ${registry.stateTypes.length} state types, ` +
-  `${registry.statements.length} statements, ${registry.computedOps.length} computed ops, ` +
+  `${registry.stateModifiers.length} modifiers, ${registry.statements.length} statements, ${registry.computedOps.length} computed ops, ` +
   `${registry.diagnostics.length} diagnostics, ${registry.themes.length} themes`,
 );
 

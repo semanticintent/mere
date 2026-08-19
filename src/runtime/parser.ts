@@ -30,6 +30,7 @@ function parseState(stateEl: Element | null): StateDecl[] {
       type,
       default: parseDefault(v.getAttribute('value') ?? v.getAttribute('default'), type),
       persist: v.hasAttribute('persist'),
+      travel: v.hasAttribute('travel'),
       fields,
     };
   });
@@ -122,6 +123,12 @@ function parseActionBody(body: string): ActionStatement[] {
     const incrMatch = line.match(/^increment\s+(\S+)(?:\s+by\s+(\S+))?$/);
     if (incrMatch) {
       stmts.push({ kind: 'increment', target: incrMatch[1]!, by: Number(incrMatch[2] ?? 1) });
+      continue;
+    }
+
+    // save — write travel state back into the workbook file
+    if (line === 'save') {
+      stmts.push({ kind: 'save' });
       continue;
     }
 

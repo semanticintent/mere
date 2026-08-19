@@ -6,6 +6,9 @@ type Subscriber = () => void;
 // ─── Reactive store ───────────────────────────────────────────────────────────
 
 export class Store {
+  /** Set at bootstrap when the workbook declares any `travel` state. */
+  onSave: (() => Promise<void>) | null = null;
+
   private values = new Map<string, unknown>();
   private subs = new Map<string, Set<Subscriber>>();
   private computed: ComputedDecl[] = [];
@@ -234,6 +237,12 @@ export class Store {
       } else if (stmt.kind === 'decrement') {
         const cur = Number(this.values.get(stmt.target) ?? 0);
         this.set(stmt.target, cur - stmt.by);
+      } else if (stmt.kind === 'save') {
+        // Wired at bootstrap. Deliberately explicit rather than automatic:
+        // autosaving a file the user may have opened read-only from an email
+        // attachment is the wrong default.
+        if (this.onSave) void this.onSave();
+        else console.warn('[mere] save: no travel state declared, nothing to write');
       }
     }
   }

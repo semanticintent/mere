@@ -1,6 +1,6 @@
 import {
   REGISTRY, KNOWN_THEMES,
-  STATE_TYPES, STATEMENTS, COMPUTED_OPS, DIAGNOSTIC_DOCS,
+  STATE_TYPES, STATE_MODIFIERS, STATEMENTS, COMPUTED_OPS, DIAGNOSTIC_DOCS,
 } from '../registry.js';
 import { CODES } from './diagnostics.js';
 
@@ -49,6 +49,7 @@ export function buildLanguageRegistry() {
     elements:    REGISTRY,
     themes:      [...KNOWN_THEMES],
     stateTypes:  STATE_TYPES,
+    stateModifiers: STATE_MODIFIERS,
     statements:  STATEMENTS,
     computedOps: COMPUTED_OPS,
     diagnostics: buildDiagnosticTable(),
@@ -108,6 +109,9 @@ export function printSchema(asJson: boolean): void {
   line('');
   line('\x1b[1mState types\x1b[0m');
   line(STATE_TYPES.map(t => t.type).join('  '));
+  line('');
+  line('\x1b[1mState modifiers\x1b[0m');
+  line(STATE_MODIFIERS.map(m => m.modifier + (m.travels ? ' (travels)' : '')).join('  '));
   line('');
   line('\x1b[1mAction statements\x1b[0m');
   for (const s of STATEMENTS) line('  ' + s.grammar);

@@ -12,7 +12,8 @@ export interface StateDecl {
   name: string;
   type: StateType;
   default?: unknown;
-  persist: boolean;
+  persist: boolean;   // saved to OPFS on this device; does NOT travel with the file
+  travel: boolean;    // serialized back into the file itself on `save`
   fields?: FieldDecl[];  // only for record-list
 }
 
@@ -36,7 +37,8 @@ export type ActionStatement =
   | { kind: 'add-to'; list: string; fields: Array<{ key: string; value: string }> }
   | { kind: 'remove-from'; list: string; where: string }
   | { kind: 'increment'; target: string; by: number }
-  | { kind: 'decrement'; target: string; by: number };
+  | { kind: 'decrement'; target: string; by: number }
+  | { kind: 'save' };
 
 export interface ActionDecl {
   name: string;

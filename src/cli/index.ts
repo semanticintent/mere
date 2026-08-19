@@ -6,6 +6,7 @@ import { runInspectCommand } from './inspect.js';
 import { runDevCommand } from './dev.js';
 import { runDiffCommand } from './diff.js';
 import { runValidateCommand } from './validate.js';
+import { runTravelReport } from './travel.js';
 import { formatDiagnostic, formatSummary } from './diagnostics.js';
 import { buildDiagnosticTable } from './schema.js';
 import { VERSION } from '../version.js';
@@ -31,13 +32,14 @@ const HELP = `
 
 \x1b[1mUsage:\x1b[0m
   mere check <file.mp>    Validate a workbook. Exit 0 = clean, 1 = errors, 2 = warnings only.
+  mere check --travel <f> Report exactly what leaves the machine when this file is sent.
   mere inspect <file.mp>  Report screens, state, elements, theme, layout — the quality profile.
   mere pack <file.mp>     Inline the runtime. Produces a fully self-contained .packed.mp.html file.
   mere dev [path]         Serve workbooks locally with check-on-save and live reload.
   mere diff <a> <b>       Structural diff between two workbook versions — screens/state/computed/actions.
   mere validate <packed>  Confirm a packed file's workbook body still matches its embedded source.
-  mere schema             Print the element registry as a table.
-  mere schema --json      Print the element registry as JSON.
+  mere schema             Print the language registry as a table.
+  mere schema --json      Print the full language registry as JSON.
   mere help               Show this help.
 
 \x1b[1mmere pack options:\x1b[0m
@@ -61,6 +63,13 @@ switch (command) {
     if (files.length === 0) {
       console.error('Usage: mere check <file.mp> [file.mp ...]');
       process.exit(1);
+    }
+
+    // --travel reports what leaves the machine rather than validating syntax
+    if (args.includes('--travel')) {
+      let worst = 0;
+      for (const file of files) worst = Math.max(worst, runTravelReport(file));
+      process.exit(worst === 2 ? 2 : 0);
     }
 
     let totalErrors = 0;
