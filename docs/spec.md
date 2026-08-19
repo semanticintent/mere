@@ -163,6 +163,12 @@ a value both `persist` and `travel` is a contradiction and an error (MPD-016).
 Run `mere check --travel <file>` to see exactly what would leave the machine
 before sending it.
 
+Saving produces a **self-contained** file. The runtime is embedded rather than
+referenced, and every external script is dropped — including anything the host
+injected rather than the author, such as an analytics beacon added at the edge.
+A workbook that only ran on the server it came from would not travel, and one
+that phoned home when opened would not be sovereign.
+
 ### Nested access
 
 Dotted access is valid on any state value whose type supports it (`map`, `list` item):

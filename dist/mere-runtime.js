@@ -1739,7 +1739,7 @@ var Mere = (() => {
     if (type === "boolean") return value ? "true" : "false";
     return String(value);
   }
-  function serializeWorkbook(state, read) {
+  function buildDocument(state, read) {
     if (sourceSnapshot === null) {
       throw new Error("[mere] save: no source snapshot \u2014 captureSource() was not called at bootstrap");
     }
@@ -1752,6 +1752,37 @@ var Mere = (() => {
       if (!valueEl) continue;
       valueEl.setAttribute("value", serializeValue(read(decl.name), decl.type));
     }
+    return doc;
+  }
+  async function selfContain(doc) {
+    const externals = [...doc.querySelectorAll("script[src]")];
+    const runtimeTag = externals.find((el) => /mere-runtime/i.test(el.getAttribute("src") ?? ""));
+    let runtimeSource = null;
+    if (runtimeTag) {
+      const src = runtimeTag.getAttribute("src") ?? "";
+      try {
+        const res = await fetch(new URL(src, location.href).href);
+        if (res.ok) runtimeSource = await res.text();
+      } catch {
+      }
+    }
+    for (const el of externals) el.remove();
+    const head = doc.head ?? doc.documentElement;
+    if (runtimeSource) {
+      const inline = doc.createElement("script");
+      inline.textContent = runtimeSource;
+      head.appendChild(inline);
+    } else if (runtimeTag) {
+      const absolute = new URL(runtimeTag.getAttribute("src") ?? "", location.href).href;
+      const tag = doc.createElement("script");
+      tag.setAttribute("src", absolute);
+      head.appendChild(tag);
+      console.warn("[mere] save: could not inline the runtime; the saved file will need network access to open.");
+    }
+  }
+  async function serializeWorkbook(state, read) {
+    const doc = buildDocument(state, read);
+    await selfContain(doc);
     const doctype = doc.doctype ? "<!DOCTYPE html>\n" : "";
     return doctype + doc.documentElement.outerHTML;
   }
@@ -1775,7 +1806,7 @@ var Mere = (() => {
     setTimeout(() => el.remove(), 5e3);
   }
   async function saveWorkbook(state, read) {
-    const contents = serializeWorkbook(state, read);
+    const contents = await serializeWorkbook(state, read);
     const bytes = new Blob([contents]).size;
     if (saveTier() === "file-system-access") {
       try {

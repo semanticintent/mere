@@ -57,10 +57,7 @@ export function serializeValue(value: unknown, type: string): string {
  * markup would corrupt any value containing quotes or angle brackets, which
  * is exactly the data most worth saving.
  */
-export function serializeWorkbook(
-  state: StateDecl[],
-  read: (name: string) => unknown,
-): string {
+function buildDocument(state: StateDecl[], read: (name: string) => unknown): Document {
   if (sourceSnapshot === null) {
     throw new Error('[mere] save: no source snapshot — captureSource() was not called at bootstrap');
   }
@@ -75,7 +72,63 @@ export function serializeWorkbook(
     if (!valueEl) continue;
     valueEl.setAttribute('value', serializeValue(read(decl.name), decl.type));
   }
+  return doc;
+}
 
+/**
+ * Make the saved file stand on its own.
+ *
+ * A workbook served from a site references the runtime by path
+ * (`src="/mere-runtime.js"`). Saved and reopened from a downloads folder that
+ * resolves to `file:///mere-runtime.js`, which does not exist — the runtime
+ * never loads and the file renders as raw markup. A workbook that only works
+ * on the server it came from is not a workbook that travels.
+ *
+ * Every external script is dropped and the runtime is embedded instead. That
+ * also removes anything the *host* injected rather than the author — a
+ * Cloudflare analytics beacon was being baked into saved files, which would
+ * have made a supposedly offline, nothing-leaves-your-machine artifact phone
+ * home the moment someone opened it.
+ */
+async function selfContain(doc: Document): Promise<void> {
+  const externals = [...doc.querySelectorAll('script[src]')];
+  const runtimeTag = externals.find(el => /mere-runtime/i.test(el.getAttribute('src') ?? ''));
+
+  let runtimeSource: string | null = null;
+  if (runtimeTag) {
+    const src = runtimeTag.getAttribute('src') ?? '';
+    try {
+      const res = await fetch(new URL(src, location.href).href);
+      if (res.ok) runtimeSource = await res.text();
+    } catch {
+      // file:// blocks fetch, and the page may be offline. Handled below.
+    }
+  }
+
+  for (const el of externals) el.remove();
+
+  const head = doc.head ?? doc.documentElement;
+  if (runtimeSource) {
+    const inline = doc.createElement('script');
+    inline.textContent = runtimeSource;
+    head.appendChild(inline);
+  } else if (runtimeTag) {
+    // Could not read the runtime — keep the reference, but make it absolute so
+    // it at least resolves from wherever the saved file is opened.
+    const absolute = new URL(runtimeTag.getAttribute('src') ?? '', location.href).href;
+    const tag = doc.createElement('script');
+    tag.setAttribute('src', absolute);
+    head.appendChild(tag);
+    console.warn('[mere] save: could not inline the runtime; the saved file will need network access to open.');
+  }
+}
+
+export async function serializeWorkbook(
+  state: StateDecl[],
+  read: (name: string) => unknown,
+): Promise<string> {
+  const doc = buildDocument(state, read);
+  await selfContain(doc);
   const doctype = doc.doctype ? '<!DOCTYPE html>\n' : '';
   return doctype + doc.documentElement.outerHTML;
 }
@@ -134,7 +187,7 @@ export async function saveWorkbook(
   state: StateDecl[],
   read: (name: string) => unknown,
 ): Promise<SaveResult> {
-  const contents = serializeWorkbook(state, read);
+  const contents = await serializeWorkbook(state, read);
   const bytes = new Blob([contents]).size;
 
   if (saveTier() === 'file-system-access') {
