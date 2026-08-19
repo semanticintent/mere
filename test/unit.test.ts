@@ -3,7 +3,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { parse } from 'node-html-parser';
 import { safeImageSrc } from '../src/runtime/safe-url.js';
-import { serializeValue } from '../src/runtime/save.js';
+import { serializeValue, normaliseSaveName } from '../src/runtime/save.js';
 import { checkFile } from '../src/cli/check.js';
 import { REGISTRY, STATE_TYPES, STATEMENTS, COMPUTED_OPS, DIAGNOSTIC_DOCS } from '../src/registry.js';
 
@@ -115,6 +115,17 @@ group('serializeValue — round-trips through the value= attribute', () => {
   const tricky = [{ body: 'He said "hi" <b>& left</b>' }];
   const round = JSON.parse(serializeValue(tricky, 'list'));
   ok(round[0].body === tricky[0].body, 'quotes and angle brackets survive the round trip');
+});
+
+group('saved files keep the canonical extension', () => {
+  // docs.mere.fyi serves clean URLs, so /x.mp.html 308-redirects to /x.mp and
+  // location.pathname loses the .html. Saving from there produced x.mp — the
+  // extension this format abandoned because .mp is MPEG audio to Safari.
+  ok(normaliseSaveName('/workbooks/travel-notes.mp') === 'travel-notes.mp.html', 'redirected .mp path');
+  ok(normaliseSaveName('/workbooks/travel-notes.mp.html') === 'travel-notes.mp.html', 'canonical path');
+  ok(normaliseSaveName('/notes.html') === 'notes.mp.html', 'plain .html');
+  ok(normaliseSaveName('/deep/path/my%20notes.mp.html') === 'my notes.mp.html', 'percent-encoded name');
+  ok(normaliseSaveName('/') === 'workbook.mp.html', 'no filename in path');
 });
 
 group('a saved workbook is still a valid workbook', () => {

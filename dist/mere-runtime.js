@@ -1758,9 +1758,21 @@ var Mere = (() => {
   function saveTier() {
     return typeof globalThis["showSaveFilePicker"] === "function" ? "file-system-access" : "download";
   }
+  function normaliseSaveName(pathname) {
+    const path = decodeURIComponent(pathname.split("/").pop() || "");
+    const stem = path.replace(/\.mp\.html$/i, "").replace(/\.mp$/i, "").replace(/\.html$/i, "");
+    return `${stem || "workbook"}.mp.html`;
+  }
   function suggestedName() {
-    const path = location.pathname.split("/").pop() || "workbook.mp.html";
-    return decodeURIComponent(path) || "workbook.mp.html";
+    return normaliseSaveName(location.pathname);
+  }
+  function announce(message) {
+    const el = document.createElement("div");
+    el.classList.add("mp-toast");
+    el.setAttribute("role", "status");
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 5e3);
   }
   async function saveWorkbook(state, read) {
     const contents = serializeWorkbook(state, read);
@@ -1775,6 +1787,7 @@ var Mere = (() => {
         const writable = await handle.createWritable();
         await writable.write(contents);
         await writable.close();
+        announce("Saved.");
         return { tier: "file-system-access", bytes, cancelled: false };
       } catch (err) {
         if (err && err.name === "AbortError") {
@@ -1791,6 +1804,7 @@ var Mere = (() => {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+    announce("Downloaded an updated copy \u2014 open that file to see your changes. This page still shows the original.");
     return { tier: "download", bytes, cancelled: false };
   }
 

@@ -96,9 +96,38 @@ export function saveTier(): SaveTier {
     : 'download';
 }
 
+/** Exported for tests — pure, so it can be checked without a DOM. */
+export function normaliseSaveName(pathname: string): string {
+  const path = decodeURIComponent(pathname.split('/').pop() || '');
+  const stem = path.replace(/\.mp\.html$/i, '').replace(/\.mp$/i, '').replace(/\.html$/i, '');
+  // Always normalise to the canonical extension. A host serving clean URLs
+  // redirects /x.mp.html to /x.mp, so location.pathname alone would save the
+  // file as .mp — the extension this format deliberately avoids, because
+  // .mp maps to MPEG audio and Safari then refuses to open it as a document.
+  return `${stem || 'workbook'}.mp.html`;
+}
+
 function suggestedName(): string {
-  const path = location.pathname.split('/').pop() || 'workbook.mp.html';
-  return decodeURIComponent(path) || 'workbook.mp.html';
+  return normaliseSaveName(location.pathname);
+}
+
+/**
+ * Tell the user what actually happened.
+ *
+ * The two tiers do materially different things — one writes the file, the
+ * other leaves a copy in the downloads folder — and a workbook's save button
+ * carries the same label for both. Without this, a Tier 2 save looks like it
+ * did nothing: the page still shows the old file, so reloading appears to
+ * have discarded the work. Reported by the format's own author within minutes
+ * of first use, which is about as clear a signal as feedback gets.
+ */
+function announce(message: string): void {
+  const el = document.createElement('div');
+  el.classList.add('mp-toast');           // styled by every theme already
+  el.setAttribute('role', 'status');
+  el.textContent = message;               // text only — never markup
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 5000);
 }
 
 export async function saveWorkbook(
@@ -123,6 +152,7 @@ export async function saveWorkbook(
       const writable = await handle.createWritable();
       await writable.write(contents);
       await writable.close();
+      announce('Saved.');
       return { tier: 'file-system-access', bytes, cancelled: false };
     } catch (err) {
       // The user dismissing the dialog is a cancellation, not a failure —
@@ -144,5 +174,6 @@ export async function saveWorkbook(
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+  announce('Downloaded an updated copy — open that file to see your changes. This page still shows the original.');
   return { tier: 'download', bytes, cancelled: false };
 }
