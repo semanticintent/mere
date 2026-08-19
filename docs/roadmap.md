@@ -137,6 +137,77 @@ Third-party themes, custom components, shared workbook library. Open format invi
 
 ---
 
+## Known defect — the `?` intent annotation is discarded at parse time
+
+**Found 2026-08-18. Logged, not fixed.**
+
+The documented syntax does not survive HTML attribute parsing:
+
+```html
+<screen ?"mobile inbox with tabs">
+```
+
+`?` followed by a quoted string is not an attribute *value* — there is no `=` —
+so the tokenizer fragments it. node-html-parser produces five separate
+attributes (`?`, `mobile`, `inbox`, `with`, `tabs`) and the runtime's
+`value || name.slice(1)` reads the intent as an empty string. Per the HTML5
+tokenizer, a browser fragments it slightly differently: a quote inside an
+attribute name is a recoverable parse error, so the name becomes `?"mobile` and
+`slice(1)` yields `"mobile` — truncated at the first space. Either way the
+annotation never reaches the runtime intact.
+
+Nothing consumes the value today (`?` is inert by design), which is why this was
+invisible. It is the same shape as `theme="notion-paper"`: a silent no-op that
+looks correct in source.
+
+**This blocks any compositor work.** There is no point expanding an annotation
+the parser throws away.
+
+### The fix, when picked up
+
+`?="mobile inbox with tabs"` parses correctly as a single attribute carrying the
+full value — verified against node-html-parser and the tokenizer spec, not yet
+against a live browser. Two candidate spellings were considered:
+
+| Option | Trade-off |
+|--------|-----------|
+| `?="…"` | Minimal change; keeps the `?` marker; reinforces that `?` is an annotation channel rather than a binding sigil (it already sits outside MPD-004 for the same reason). |
+| `intent="…"` | Ordinary HTML attribute, no sigil-adjacent parsing at all; loses the `?` visual marker. |
+
+Scope of the migration: **100 occurrences across 22 files** — `mere/examples`,
+`mere/docs`, `README.md`, `mere-site/src`, `mere-site/workbooks`, and
+`mere-store/src/app/get-started/page.tsx` (the store's "copy AI prompt" text).
+
+Suggested shape when done:
+1. Migrate all occurrences mechanically.
+2. Keep the runtime accepting the old form so existing files do not hard-break.
+3. Add a diagnostic (next free code after MPD-017) flagging the broken spelling,
+   so it cannot be reintroduced — the same treatment MPD-014 gave self-closing tags.
+
+### Then: `mere expand`
+
+`@semanticintent/recall-compiler` is a working reference implementation of the
+same problem (`WITH INTENT` → `recall expand`): Anthropic API with
+`ANTHROPIC_API_KEY` or `--api-key`, a system prompt teaching the target
+language, a structured payload of available data, and output written atomically
+to `<stem>.expanded.rcl` rather than in place. See `src/expand/` there.
+
+Two things Mere should do differently:
+
+- **Generate the compositor's system prompt from the language registry.** RECALL's
+  prompt hand-lists its elements, which is precisely the drift this project spent
+  2026-08-18 eliminating. Mere already emits the whole language surface via
+  `mere schema --json`; the generator should be taught from the same source the
+  published spec is.
+- **Validate the expansion with `mere check` before writing**, and feed any
+  diagnostics back for one repair attempt. Refusing to emit source that fails its
+  own checker is the differentiator over a plain generate-and-hope loop.
+
+Expansion must remain author-time only. A compositor call at render time would
+break "works offline, forever".
+
+---
+
 ## Open questions (pre-implementation)
 
 1. **Schema migration.** When a workbook author ships v2 with state changes, how does a recipient's v1 data migrate? Not blocking v0.1, but needs a design before v0.2.
