@@ -3,8 +3,8 @@ message: "If you use Mere in your work, please cite it using this metadata."
 type: software
 
 title: "Mere: A Workbook Format for Portable, Self-Contained Applications"
-version: 0.7.0
-date-released: 2026-08-19
+version: 0.7.1
+date-released: 2026-11-15
 doi: "10.5281/zenodo.19751777"
 
 authors:
