@@ -1682,7 +1682,7 @@ function runTravelReport(filePath) {
 var MODIFIER_NAMES = STATE_MODIFIERS.map((m) => m.modifier).join(", ");
 
 // src/version.ts
-var VERSION = "0.7.0";
+var VERSION = "0.7.1";
 
 // src/cli/index.ts
 var args = process.argv.slice(2);
