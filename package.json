@@ -27,7 +27,8 @@
     "watch": "node build.js --watch",
     "dev": "node build.js --serve",
     "generate-spec": "node scripts/generate-spec.mjs",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "prepublishOnly": "npm run build && npm test"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
